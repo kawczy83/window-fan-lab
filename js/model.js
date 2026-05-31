@@ -58,7 +58,13 @@
   }
   function flowModel(st){
     const wsN=st.windSpeed/10, openings=availableWindows(st), others=availableWindows(st,otherWindows(st.fanLoc));
-    if(st.fanMode==="off")      return openings.length>1?0.05:(openings.length?0.03:0.02);
+    if(st.fanMode==="off"){
+      // Natural ventilation: with no fan, airflow is wind-driven cross-ventilation.
+      if(openings.length<2) return openings.length?0.03:0.02; // <2 openings: no through-path
+      const intake=chooseByPressure(st,openings,true), exhaust=chooseByPressure(st,openings.filter(name=>name!==intake),false);
+      const draft=pressure(st,intake)-pressure(st,exhaust); // windward−leeward pressure gap, ≥0
+      return 0.05+0.35*draft*wsN; // 0.05 calm/buoyant floor; rises with wind through a real pressure gap
+    }
     if(st.fanMode==="exchange") return others.length?0.60:0.50;
     if(!others.length) return st.fanMode==="out"?0.40:0.34;
     const fanW=st.fanLoc, otherW=chooseByPressure(st,others,st.fanMode==="out");

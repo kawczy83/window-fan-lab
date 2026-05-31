@@ -90,3 +90,61 @@ test("legacy grouped window state migrates to individual windows", () => {
     west: false,
   });
 });
+
+test("fan-off cross-ventilation rises with wind speed", () => {
+  const calm = baseState();
+  calm.fanMode = "off";
+  calm.windSpeed = 0;
+
+  const breezy = baseState();
+  breezy.fanMode = "off";
+  breezy.windSpeed = 10;
+
+  // No wind through a windward/leeward path: only the buoyant/turbulent floor.
+  assert.equal(flowModel(calm), 0.05);
+  // The same openings move much more air once the wind drives them.
+  assert.ok(flowModel(breezy) > flowModel(calm));
+});
+
+test("fan-off ventilation depends on window orientation to the wind", () => {
+  const through = baseState(); // wind blows toward south
+  through.fanMode = "off";
+  through.windSpeed = 10;
+  through.openWindows = onlyOpen("north", "south"); // windward + leeward
+
+  const parallel = baseState();
+  parallel.fanMode = "off";
+  parallel.windSpeed = 10;
+  parallel.openWindows = onlyOpen("east", "west"); // both side walls
+
+  // A windward -> leeward path out-ventilates two equal-pressure side walls.
+  assert.ok(flowModel(through) > flowModel(parallel));
+  // Side-wall pair shares the same pressure: no driving gap, just the floor.
+  assert.equal(flowModel(parallel), 0.05);
+});
+
+test("a running fan still out-ventilates open windows in the same wind", () => {
+  const natural = baseState();
+  natural.fanMode = "off";
+  natural.windSpeed = 10;
+
+  const fan = baseState(); // south exhaust with a full through-path
+  fan.windSpeed = 10;
+
+  assert.ok(flowModel(fan) > flowModel(natural));
+});
+
+test("fan still wins and flow stays physical at the 30 mph slider maximum", () => {
+  const fan = baseState(); // south exhaust with a full through-path
+  fan.windSpeed = 30;
+
+  const natural = baseState();
+  natural.fanMode = "off";
+  natural.windSpeed = 30;
+
+  // The fan still out-ventilates open windows at the top of the range.
+  assert.ok(flowModel(fan) > flowModel(natural));
+  // Strong wind never drives flow negative or unbounded.
+  assert.ok(flowModel(natural) >= 0.05);
+  assert.ok(flowModel(fan) >= 0.05);
+});
