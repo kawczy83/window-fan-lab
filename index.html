@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Compare four-window fan placements with a lightweight airflow sandbox, race mode, historical wind rose, and local cooling-trial logger.">
+<meta name="theme-color" content="#0c0f14">
+<title>WINDOW FAN LAB — Airflow, Race Mode &amp; Wind Rose</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="tag">Thermal Airflow Bench · v2.2</div>
+    <h1>Window Fan Lab <em>// race configs · read the wind</em></h1>
+    <p class="sub">Top-down room physics for a four-window bedroom (windows facing North, East, South &amp; West). Run a single Sandbox, race two configurations head-to-head, or pull a historical wind rose for your coordinates and feed the prevailing direction straight into the model.</p>
+  </header>
+
+  <div class="toolbar">
+    <div class="switch" id="modeSwitch">
+      <button data-m="sandbox" class="active">Sandbox</button>
+      <button data-m="race">Race two configs</button>
+    </div>
+    <div class="speed">
+      Sim speed
+      <div class="seg" id="speedSeg">
+        <button data-s="1" class="active">1×</button>
+        <button data-s="2">2×</button>
+        <button data-s="4">4×</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== SANDBOX ===================== -->
+  <div id="sandboxView" class="grid">
+    <div class="panel">
+      <h2>Room — top-down view</h2>
+      <div class="stage"><canvas id="sbRoom" width="640" height="520"></canvas></div>
+      <div class="legend">
+        <span><i class="dot" style="background:var(--cool)"></i>cool outdoor air in</span>
+        <span><i class="dot" style="background:var(--warm)"></i>warm indoor air out</span>
+        <span><i class="dot" style="background:#5b6b86"></i>wind direction</span>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Instruments</h2>
+      <div class="readout">
+        <div class="stat"><div class="k">Indoor</div><div class="v" id="sbIn" style="color:var(--warm)">74.0<span class="u">°F</span></div></div>
+        <div class="stat"><div class="k">Outdoor</div><div class="v" id="sbOut" style="color:var(--cool)">64<span class="u">°F</span></div></div>
+      </div>
+      <div class="ctl"><label>Air exchange rate <span class="rangeval" id="sbFlowPct">—</span></label><div class="bar"><i id="sbFlowBar"></i></div></div>
+      <div class="status" id="sbStatus" aria-live="polite">Set a configuration and watch the room cool.</div>
+      <canvas id="sbChart" width="520" height="240" style="width:100%;height:120px;border-radius:10px;background:#0a0d12;border:1px solid var(--line);margin-top:10px;"></canvas>
+
+      <h2 style="margin-top:18px">Controls</h2>
+      <div class="ctl"><label>Fan location</label>
+        <div class="seg" data-sim="sb" data-key="fanLoc">
+          <button data-v="north">North window</button>
+          <button data-v="east">East window</button>
+          <button data-v="south" class="active">South window</button>
+          <button data-v="west">West window</button>
+        </div></div>
+      <div class="ctl"><label>Fan mode</label>
+        <div class="seg" data-sim="sb" data-key="fanMode">
+          <button data-v="out" class="active">Out</button>
+          <button data-v="in">In</button>
+          <button data-v="exchange">Exchange</button>
+          <button data-v="off">Off</button>
+        </div></div>
+      <div class="ctl"><label>Window state · active fan window stays open</label>
+        <div class="seg window-seg" data-sim="sb" data-windows>
+          <button data-window="north" class="active">North · open</button>
+          <button data-window="east" class="active">East · open</button>
+          <button data-window="south" class="active">South · open</button>
+          <button data-window="west" class="active">West · open</button>
+        </div></div>
+      <div class="ctl"><label>Wind blowing toward</label>
+        <div class="seg" data-sim="sb" data-key="windDir">
+          <button data-v="N">North ↑</button>
+          <button data-v="NE">NE ↗</button>
+          <button data-v="E">East →</button>
+          <button data-v="SE">SE ↘</button>
+          <button data-v="S" class="active">South ↓</button>
+          <button data-v="SW">SW ↙</button>
+          <button data-v="W">West ←</button>
+          <button data-v="NW">NW ↖</button>
+        </div></div>
+      <div class="ctl"><label>Wind speed <span class="rangeval" id="sbWsVal">5</span></label>
+        <input type="range" id="sbWs" min="0" max="10" step="1" value="5"></div>
+      <div class="ctl"><label>Starting indoor temp <span class="rangeval" id="sbItVal">74°F</span></label>
+        <input type="range" id="sbIt" min="40" max="95" step="1" value="74"></div>
+      <div class="ctl"><label>Outdoor temp <span class="rangeval" id="sbOtVal">64°F</span></label>
+        <input type="range" id="sbOt" min="40" max="95" step="1" value="64"></div>
+      <div class="actions">
+        <button class="btn-reset" id="sbReset">Reset room → 74°F</button>
+        <button class="btn-best" id="sbBest">Load best: South · Out</button>
+      </div>
+      <p class="note"><b>How the model works:</b> cooling speed is driven by the <b>air-exchange rate</b>. The biggest factor is whether a complete <b>intake → exhaust path</b> exists. A sealed fan stalls itself — the one-in/one-out rule. Open or close each window independently; with multiple openings available, the model draws the dominant pressure-assisted path. For the default wind toward <b>South</b>, a South-window exhaust can pull from a windward North window.</p>
+    </div>
+  </div>
+
+  <!-- ===================== RACE ===================== -->
+  <div id="raceView">
+    <div class="panel">
+      <h2>Head-to-head · same room, same weather, different fan setup</h2>
+      <div class="race-rooms">
+        <div class="runner" id="runnerA">
+          <div class="runner-head"><span class="chip chipA">CONFIG A</span><div class="timer" id="timerA">—<small> rel. units</small></div></div>
+          <canvas class="room" id="raRoom" width="380" height="360"></canvas>
+          <div class="mini-flow"><span id="labelA">south · out · open N/E/S/W</span><span>flow <b id="flowA">—</b></span></div>
+        </div>
+        <div class="runner" id="runnerB">
+          <div class="runner-head"><span class="chip chipB">CONFIG B</span><div class="timer" id="timerB">—<small> rel. units</small></div></div>
+          <canvas class="room" id="rbRoom" width="380" height="360"></canvas>
+          <div class="mini-flow"><span id="labelB">south · in · open N/E/S/W</span><span>flow <b id="flowB">—</b></span></div>
+        </div>
+      </div>
+
+      <div class="winbar" id="winbar" aria-live="polite">First to reach outdoor temp wins in relative simulation time. Press Start.</div>
+      <canvas id="raChart" width="700" height="200" style="width:100%;height:130px;border-radius:10px;background:#0a0d12;border:1px solid var(--line);"></canvas>
+
+      <div class="presets">
+        <button data-preset="outin">Out vs In</button>
+        <button data-preset="sealed">Path vs Sealed</button>
+        <button data-preset="exch">Fan vs Exchange</button>
+        <button data-preset="ws">South vs West (out)</button>
+        <button data-preset="ns">South vs North (out)</button>
+        <button data-preset="we">West vs East (out)</button>
+      </div>
+
+      <div class="race-config">
+        <div class="cfg outlineA">
+          <div class="ctl"><label>A — Fan location</label>
+            <div class="seg" data-sim="A" data-key="fanLoc">
+              <button data-v="north">North</button><button data-v="east">East</button><button data-v="south" class="active">South</button><button data-v="west">West</button>
+            </div></div>
+          <div class="ctl"><label>A — Fan mode</label>
+            <div class="seg" data-sim="A" data-key="fanMode">
+              <button data-v="out" class="active">Out</button><button data-v="in">In</button><button data-v="exchange">Exch</button><button data-v="off">Off</button>
+            </div></div>
+          <div class="ctl" style="margin-bottom:0"><label>A — Window state</label>
+            <div class="seg window-seg" data-sim="A" data-windows>
+              <button data-window="north" class="active">N · open</button><button data-window="east" class="active">E · open</button><button data-window="south" class="active">S · open</button><button data-window="west" class="active">W · open</button>
+            </div></div>
+        </div>
+        <div class="cfg outlineB">
+          <div class="ctl"><label>B — Fan location</label>
+            <div class="seg" data-sim="B" data-key="fanLoc">
+              <button data-v="north">North</button><button data-v="east">East</button><button data-v="south" class="active">South</button><button data-v="west">West</button>
+            </div></div>
+          <div class="ctl"><label>B — Fan mode</label>
+            <div class="seg" data-sim="B" data-key="fanMode">
+              <button data-v="out">Out</button><button data-v="in" class="active">In</button><button data-v="exchange">Exch</button><button data-v="off">Off</button>
+            </div></div>
+          <div class="ctl" style="margin-bottom:0"><label>B — Window state</label>
+            <div class="seg window-seg" data-sim="B" data-windows>
+              <button data-window="north" class="active">N · open</button><button data-window="east" class="active">E · open</button><button data-window="south" class="active">S · open</button><button data-window="west" class="active">W · open</button>
+            </div></div>
+        </div>
+      </div>
+
+      <h2 style="margin-top:18px">Shared environment</h2>
+      <div class="race-config">
+        <div>
+          <div class="ctl"><label>Wind blowing toward</label>
+            <div class="seg" data-sim="ENV" data-key="windDir">
+              <button data-v="N">North ↑</button><button data-v="NE">NE ↗</button><button data-v="E">East →</button><button data-v="SE">SE ↘</button><button data-v="S" class="active">South ↓</button><button data-v="SW">SW ↙</button><button data-v="W">West ←</button><button data-v="NW">NW ↖</button>
+            </div></div>
+          <div class="ctl" style="margin-bottom:0"><label>Wind speed <span class="rangeval" id="raWsVal">5</span></label>
+            <input type="range" id="raWs" min="0" max="10" step="1" value="5"></div>
+        </div>
+        <div>
+          <div class="ctl"><label>Starting indoor temp <span class="rangeval" id="raItVal">74°F</span></label>
+            <input type="range" id="raIt" min="40" max="95" step="1" value="74"></div>
+          <div class="ctl"><label>Outdoor temp <span class="rangeval" id="raOtVal">64°F</span></label>
+            <input type="range" id="raOt" min="40" max="95" step="1" value="64"></div>
+          <div class="actions">
+            <button class="btn-reset" id="raReset">Reset</button>
+            <button class="btn-best" id="raStart">▶ Start race</button>
+          </div>
+        </div>
+      </div>
+      <p class="note"><b>Reading the result:</b> a clean through-path (fan + at least one other open window) cools fast; isolating the fan stalls it. Race timers are <b>relative simulation time</b>, not calibrated elapsed seconds. <b>Out vs In</b> is usually close once both have a path. Opposing wall presets make the wind-pressure effect easiest to compare.</p>
+    </div>
+  </div>
+
+  <!-- ===================== WIND ROSE ===================== -->
+  <div id="roseBlock" class="panel">
+    <h2>Historical wind rose — prevailing pattern for your area</h2>
+    <div class="rose-grid">
+      <canvas id="rose" width="600" height="600"></canvas>
+      <div class="rose-meta">
+        <div class="src">Source <span class="pill loading" id="rosePill">loading…</span></div>
+        <h3 id="roseLoc">Philadelphia, PA · fallback sample data</h3>
+        <p id="roseSummary" aria-live="polite">Fetching the last 12 months of hourly wind data…</p>
+        <p style="color:var(--muted);font-size:12px">Petals show how often wind blows <b style="color:var(--warm-deep)">FROM</b> each direction. The longest petal is the prevailing wind; the model in this app uses the direction the wind blows <b style="color:var(--cool)">TOWARD</b>, so the two are opposite.</p>
+        <div class="loc-row">
+          <div class="f"><label for="lat">Latitude</label><input type="number" id="lat" min="-90" max="90" step="any" value="39.9526"></div>
+          <div class="f"><label for="lon">Longitude</label><input type="number" id="lon" min="-180" max="180" step="any" value="-75.1652"></div>
+          <button id="fetchRose">Fetch</button>
+          <button class="geo-btn" id="geoBtn">Use my location</button>
+        </div>
+        <div class="rose-apply">
+          <button id="applyRose">↳ Apply historical prevailing direction to model</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== CURRENT WIND ===================== -->
+  <div id="currentWindBlock" class="panel">
+    <h2>Optional current wind — manual model input</h2>
+    <p class="section-copy">The historical wind rose above is a pattern summary, not current weather. Enter an observed current wind separately when you want the model to reflect conditions now.</p>
+    <div class="compact-grid">
+      <div class="ctl" style="margin-bottom:0"><label>Current wind blowing toward</label>
+        <div class="seg" id="currentWindDir">
+          <button data-v="N">North ↑</button>
+          <button data-v="NE">NE ↗</button>
+          <button data-v="E">East →</button>
+          <button data-v="SE">SE ↘</button>
+          <button data-v="S" class="active">South ↓</button>
+          <button data-v="SW">SW ↙</button>
+          <button data-v="W">West ←</button>
+          <button data-v="NW">NW ↖</button>
+        </div>
+      </div>
+      <div class="ctl" style="margin-bottom:0"><label>Current wind speed <span class="rangeval" id="currentWsVal">5 mph</span></label>
+        <input type="range" id="currentWs" min="0" max="10" step="1" value="5">
+      </div>
+      <div class="actions" style="margin:0">
+        <button class="btn-best" id="applyCurrentWind">Apply current wind to active model</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== REAL-WORLD TRIALS ===================== -->
+  <div id="trialBlock" class="panel">
+    <h2>Real-world trial logger — measured cooling</h2>
+    <p class="section-copy">Log measured room-temperature trials under real conditions. Setup rankings use combined measured cooling per hour; they are independent of the toy simulation.</p>
+    <form id="trialForm">
+      <div class="compact-grid">
+        <div class="field"><label for="trialFanLoc">Fan location</label><select id="trialFanLoc"><option value="north">North window</option><option value="east">East window</option><option value="south" selected>South window</option><option value="west">West window</option></select></div>
+        <div class="field"><label for="trialFanMode">Fan mode</label><select id="trialFanMode"><option value="out">Out</option><option value="in">In</option><option value="exchange">Exchange</option><option value="off">Off</option></select></div>
+        <div class="field"><label for="trialNorthOpen">North window</label><select id="trialNorthOpen"><option value="open">Open</option><option value="closed">Closed</option></select></div>
+        <div class="field"><label for="trialEastOpen">East window</label><select id="trialEastOpen"><option value="open">Open</option><option value="closed">Closed</option></select></div>
+        <div class="field"><label for="trialSouthOpen">South window</label><select id="trialSouthOpen"><option value="open">Open</option><option value="closed">Closed</option></select></div>
+        <div class="field"><label for="trialWestOpen">West window</label><select id="trialWestOpen"><option value="open">Open</option><option value="closed">Closed</option></select></div>
+        <div class="field"><label for="trialStart">Starting temp °F</label><input id="trialStart" type="number" step="0.1" value="74" required></div>
+        <div class="field"><label for="trialEnd">Ending temp °F</label><input id="trialEnd" type="number" step="0.1" value="72" required></div>
+        <div class="field"><label for="trialMinutes">Trial duration minutes</label><input id="trialMinutes" type="number" min="0.1" step="0.1" value="30" required></div>
+        <div class="field wide"><label for="trialNotes">Notes</label><textarea id="trialNotes" placeholder="Wind, outdoor temperature, fan speed, door state, observations…"></textarea></div>
+      </div>
+      <div class="actions">
+        <button class="btn-best" type="submit">Add measured trial</button>
+        <button class="btn-reset" type="button" id="clearTrials">Clear trials</button>
+      </div>
+      <div class="trial-msg" id="trialMsg" aria-live="polite"></div>
+    </form>
+
+    <h3 class="minor-heading">Setup ranking</h3>
+    <div class="table-wrap"><table class="trial-table">
+      <thead><tr><th>Rank</th><th>Setup</th><th>Trials</th><th>Measured cooling</th></tr></thead>
+      <tbody id="trialRanking"></tbody>
+    </table></div>
+
+    <h3 class="minor-heading">Logged trials</h3>
+    <div class="table-wrap"><table class="trial-table">
+      <thead><tr><th>Setup</th><th>Start → end</th><th>Duration</th><th>Cooling rate</th><th>Notes</th><th></th></tr></thead>
+      <tbody id="trialRows"></tbody>
+    </table></div>
+  </div>
+
+  <footer>
+    Toy physics for intuition, not an HVAC load calc · historical wind-pattern data via the free <a href="https://open-meteo.com" style="color:var(--cool)">Open-Meteo</a> archive (no key)<br>
+    Falls back to clearly labeled Philadelphia sample climatology · default scenario 74°F in · 64°F out · windows facing North, East, South &amp; West
+  </footer>
+</div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
