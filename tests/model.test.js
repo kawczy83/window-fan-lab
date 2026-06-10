@@ -5,9 +5,16 @@ import {
   airPath,
   applyConfig,
   availableWindows,
+  FAN_MODES,
+  FLOW_MAX,
   flowModel,
+  isValidTrial,
+  naturalFlow,
   normalizeOpenWindows,
   onlyOpen,
+  WIND,
+  WINDOW_IDS,
+  windBoost,
   windowState,
 } from "../js/model.js";
 
@@ -132,6 +139,76 @@ test("a running fan still out-ventilates open windows in the same wind", () => {
   fan.windSpeed = 10;
 
   assert.ok(flowModel(fan) > flowModel(natural));
+});
+
+test("windBoost is zero without wind and signed by alignment with the fan", () => {
+  const calm = baseState();
+  calm.windSpeed = 0;
+  assert.equal(windBoost(calm), 0); // no wind, no boost — and no "wind is helping" copy
+
+  const aligned = baseState(); // south exhaust, wind toward south
+  assert.ok(windBoost(aligned) > 0);
+
+  const opposed = baseState(); // exhausting into the windward north face
+  opposed.fanLoc = "north";
+  assert.ok(windBoost(opposed) < 0);
+
+  for (const fanMode of ["off", "exchange"]) {
+    const inert = baseState();
+    inert.fanMode = fanMode;
+    assert.equal(windBoost(inert), 0);
+  }
+  const sealed = baseState();
+  sealed.openWindows = onlyOpen("south");
+  assert.equal(windBoost(sealed), 0);
+});
+
+test("a fan never moves less air than the same open windows without it", () => {
+  const fighting = baseState(); // exhaust straight into a 30 mph windward face
+  fighting.fanLoc = "north";
+  fighting.windSpeed = 30;
+
+  const noFan = baseState();
+  noFan.fanMode = "off";
+  noFan.windSpeed = 30;
+
+  // The wind keeps cross-venting the other openings, so flow floors at the fan-off rate.
+  assert.equal(flowModel(fighting), flowModel(noFan));
+  assert.ok(flowModel(fighting) >= naturalFlow(fighting));
+});
+
+test("flow stays within (0, FLOW_MAX] across the whole config space", () => {
+  for (const fanLoc of WINDOW_IDS)
+    for (const fanMode of FAN_MODES)
+      for (const windDir of Object.keys(WIND))
+        for (const windSpeed of [0, 5, 10, 30])
+          for (const openWindows of [
+            windowState(true),
+            windowState(false),
+            onlyOpen("north", "south"),
+            onlyOpen("east"),
+            onlyOpen(fanLoc),
+          ]) {
+            const st = { indoor: 74, outdoor: 64, fanLoc, fanMode, openWindows, windDir, windSpeed };
+            const flow = flowModel(st);
+            assert.ok(
+              flow > 0 && flow <= FLOW_MAX,
+              `flow ${flow} out of range for ${JSON.stringify(st)}`,
+            );
+          }
+});
+
+test("malformed stored trials are rejected instead of crashing the app", () => {
+  assert.equal(isValidTrial(5), false);
+  assert.equal(isValidTrial(null), false);
+  assert.equal(isValidTrial({}), false);
+  assert.equal(isValidTrial({ fanLoc: "attic", fanMode: "out", start: 74, end: 72, minutes: 30 }), false);
+  assert.equal(isValidTrial({ fanLoc: "south", fanMode: "out", start: "74", end: 72, minutes: 30 }), false);
+  assert.equal(isValidTrial({ fanLoc: "south", fanMode: "out", start: 74, end: 72, minutes: 0 }), false); // Infinity °F/h guard
+
+  assert.equal(isValidTrial({ fanLoc: "south", fanMode: "out", start: 74, end: 72, minutes: 30 }), true);
+  // Legacy records carry otherOpen instead of openWindows — they must stay loadable.
+  assert.equal(isValidTrial({ fanLoc: "west", fanMode: "off", otherOpen: true, start: 80, end: 76, minutes: 45 }), true);
 });
 
 test("fan still wins and flow stays physical at the 30 mph slider maximum", () => {

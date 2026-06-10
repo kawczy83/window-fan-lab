@@ -11,6 +11,9 @@ import {
   onlyOpen,
   applyConfig,
   configState,
+  isValidTrial,
+  windBoost,
+  FLOW_MAX,
   flowModel,
   airPath,
   otherWindows,
@@ -141,7 +144,7 @@ import {
   }
 
   /* =================== STATUS TEXT (sandbox) =================== */
-  function statusText(st,rate){
+  function statusText(st){
     const path=airPath(st), openings=availableWindows(st), others=availableWindows(st,otherWindows(st.fanLoc));
     const stalled=(st.fanMode==="in"||st.fanMode==="out")&&!others.length, off=st.fanMode==="off";
     const dirName=(WIND[st.windDir]||WIND.S).name;
@@ -149,8 +152,9 @@ import {
     if(off) msg=openings.length>1?`Fan is <b>off</b> — the room drifts through gentle natural exchange between open windows.`:`Fan is <b>off</b> with fewer than two open windows — barely any exchange.`;
     else if(stalled) msg=`Fan ${st.fanMode==="out"?"exhausting":"drawing"} without another open window. One-in/one-out rule kicks in — it stalls. Open a second window.`;
     else if(st.fanMode==="exchange") msg=`<b>Exchange</b> mode: one blade in, one out, through a single window. Works, but a fan + other open windows moves more air.`;
-    else {const intake=windowLabel(path.intake), exhaust=windowLabel(path.exhaust);
-      msg=`Clear through-path: cool air in via <b>${intake}</b>, warm out via <b>${exhaust}</b>. Wind toward ${dirName} is ${rate>0.98?"<b>helping</b>":"a minor factor"} here.`;}
+    else {const intake=windowLabel(path.intake), exhaust=windowLabel(path.exhaust), boost=windBoost(st);
+      const windNote=boost>0.05?"<b>helping</b>":(boost<-0.05?"working against the fan":"a minor factor");
+      msg=`Clear through-path: cool air in via <b>${intake}</b>, warm out via <b>${exhaust}</b>. Wind toward ${dirName} is ${windNote} here.`;}
     if(Math.abs(st.indoor-st.outdoor)<0.15&&!off) msg+=` <b style="color:var(--good)">Stabilised at outdoor temp.</b>`;
     return msg;
   }
@@ -160,7 +164,7 @@ import {
   const sandbox=makeSim();
   const A=makeSim({fanLoc:"south",fanMode:"out"});
   const B=makeSim({fanLoc:"south",fanMode:"in"});
-  let raceRunning=false, winner=null;
+  let raceRunning=false, winner=null, raceTie=false;
 
   const K=0.16, EPS=0.08;
   function integrate(sim,dt){
@@ -191,9 +195,9 @@ import {
       document.getElementById("sbIn").innerHTML=sandbox.st.indoor.toFixed(1)+'<span class="u">°F</span>';
       document.getElementById("sbIn").style.color=tempColor(sandbox.st,sandbox.st.indoor);
       document.getElementById("sbOut").innerHTML=sandbox.st.outdoor+'<span class="u">°F</span>';
-      const pct=Math.round(Math.min(1,rate/1.2)*100);
+      const pct=Math.round(Math.min(1,rate/FLOW_MAX)*100);
       document.getElementById("sbFlowBar").style.width=pct+"%";document.getElementById("sbFlowPct").textContent=pct+"%";
-      document.getElementById("sbStatus").innerHTML=statusText(sandbox.st,rate);
+      document.getElementById("sbStatus").innerHTML=statusText(sandbox.st);
     } else {
       // race
       [[A,raGeo,raCtx,"timerA","flowA","runnerA","labelA"],[B,rbGeo,rbCtx,"timerB","flowB","runnerB","labelB"]].forEach(([sim,g,ctx,tId,fId,rId,lId])=>{
@@ -207,17 +211,19 @@ import {
         drawRoom(ctx,g,sim,{small:true});
         if(raceRunning && now-sim.lastHist>100){sim.hist.push(sim.st.indoor);if(sim.hist.length>240)sim.hist.shift();sim.lastHist=now;}
         document.getElementById(tId).innerHTML=(sim.doneAt?sim.doneAt.toFixed(1):sim.t.toFixed(1))+'<small> rel. units</small>';
-        document.getElementById(fId).textContent=Math.round(Math.min(1,rate/1.2)*100)+"%";
+        document.getElementById(fId).textContent=Math.round(Math.min(1,rate/FLOW_MAX)*100)+"%";
         document.getElementById(lId).textContent=`${sim.st.fanLoc} · ${sim.st.fanMode} · open ${openWindowSummary(sim.st)}`;
-        document.getElementById(rId).classList.toggle("win", winner===sim);
+        document.getElementById(rId).classList.toggle("win", winner===sim||raceTie);
       });
       drawChartRace(raChart,A,B);
-      // winner detection
-      if(raceRunning && !winner){
-        if(A.doneAt && B.doneAt) winner = A.doneAt<=B.doneAt?A:B;
-        else if(A.doneAt) winner=A;
-        else if(B.doneAt) winner=B;
-        if(winner){
+      // winner detection (identical configs cross the line in the same step — call that a dead heat)
+      if(raceRunning && !winner && !raceTie){
+        if(A.doneAt && B.doneAt && Math.abs(A.doneAt-B.doneAt)<1e-9){
+          raceTie=true;
+          document.getElementById("winbar").className="winbar winner";
+          document.getElementById("winbar").innerHTML=`🏁 Dead heat — both configs reach outdoor temp in ${A.doneAt.toFixed(1)} relative units`;
+        } else if(A.doneAt || B.doneAt){
+          winner = A.doneAt && (!B.doneAt || A.doneAt<=B.doneAt) ? A : B;
           const wname=winner===A?"A":"B", wt=winner.doneAt.toFixed(1);
           document.getElementById("winbar").className="winbar winner";
           document.getElementById("winbar").innerHTML=`🏁 Config ${wname} reaches outdoor temp first — ${wt} relative units`;
@@ -307,7 +313,7 @@ import {
   document.getElementById("raWs").addEventListener("input",e=>{A.st.windSpeed=B.st.windSpeed=+e.target.value;document.getElementById("raWsVal").textContent=e.target.value;});
   document.getElementById("raIt").addEventListener("input",e=>{raceStartIndoor=+e.target.value;document.getElementById("raItVal").textContent=e.target.value+"°F";resetRace();});
   document.getElementById("raOt").addEventListener("input",e=>{A.st.outdoor=B.st.outdoor=+e.target.value;document.getElementById("raOtVal").textContent=e.target.value+"°F";});
-  function resetRace(){resetSim(A,raceStartIndoor);resetSim(B,raceStartIndoor);raceRunning=false;winner=null;document.getElementById("winbar").className="winbar";document.getElementById("winbar").innerHTML="First to reach outdoor temp wins in relative simulation time. Press Start.";document.getElementById("runnerA").classList.remove("win");document.getElementById("runnerB").classList.remove("win");}
+  function resetRace(){resetSim(A,raceStartIndoor);resetSim(B,raceStartIndoor);raceRunning=false;winner=null;raceTie=false;document.getElementById("winbar").className="winbar";document.getElementById("winbar").innerHTML="First to reach outdoor temp wins in relative simulation time. Press Start.";document.getElementById("runnerA").classList.remove("win");document.getElementById("runnerB").classList.remove("win");}
   document.getElementById("raReset").addEventListener("click",resetRace);
   document.getElementById("raStart").addEventListener("click",()=>{resetRace();raceRunning=true;document.getElementById("winbar").innerHTML="Racing…";});
 
@@ -366,9 +372,10 @@ import {
   });
   document.getElementById("currentWs").addEventListener("input",e=>{document.getElementById("currentWsVal").textContent=e.target.value+" mph";});
   document.getElementById("applyCurrentWind").addEventListener("click",e=>{
+    const btn=e.currentTarget; // currentTarget is null once dispatch ends — capture before the timeout
     applyWindToActive(currentWindToward,+document.getElementById("currentWs").value);
-    e.currentTarget.textContent="✓ Applied current wind";
-    setTimeout(()=>{e.currentTarget.textContent="Apply current wind to active model";},1800);
+    btn.textContent="✓ Applied current wind";
+    setTimeout(()=>{btn.textContent="Apply current wind to active model";},1800);
   });
 
   /* =================== WIND ROSE =================== */
@@ -484,22 +491,26 @@ import {
     );
   });
   document.getElementById("applyRose").addEventListener("click",e=>{
-    const toward=e.currentTarget.dataset.toward||"E";
+    const btn=e.currentTarget; // currentTarget is null once dispatch ends — capture before the timeout
+    const toward=btn.dataset.toward||"E";
     applyWindToActive(toward);
     const tn=(WIND[toward]||WIND.S).name;
-    e.currentTarget.textContent=`✓ Applied historical pattern — wind toward ${tn}`;
-    setTimeout(()=>{e.currentTarget.textContent="↳ Apply historical prevailing direction to model";},1800);
+    btn.textContent=`✓ Applied historical pattern — wind toward ${tn}`;
+    setTimeout(()=>{btn.textContent="↳ Apply historical prevailing direction to model";},1800);
   });
 
   /* =================== REAL-WORLD TRIALS =================== */
   const TRIALS_KEY="window-fan-lab-trials-v1";
+  const newTrialId=()=>Date.now()+"-"+Math.random().toString(36).slice(2);
   function normalizeTrial(trial){
     const normalized=Object.assign({},trial,{openWindows:normalizeOpenWindows(trial.openWindows,trial.fanLoc,trial.otherOpen)});
+    if(!normalized.id)normalized.id=newTrialId();
     delete normalized.otherOpen;
     return normalized;
   }
   function loadTrials(){
-    try{const data=JSON.parse(localStorage.getItem(TRIALS_KEY)||"[]");return Array.isArray(data)?data.map(normalizeTrial):[];}catch(err){return [];}
+    // Drop malformed stored records — one bad entry must not take down the whole app at boot.
+    try{const data=JSON.parse(localStorage.getItem(TRIALS_KEY)||"[]");return Array.isArray(data)?data.filter(isValidTrial).map(normalizeTrial):[];}catch(err){return [];}
   }
   let trials=loadTrials();
   const trialRate=t=>(t.start-t.end)/(t.minutes/60);
@@ -547,7 +558,7 @@ import {
     e.preventDefault();
     const start=+document.getElementById("trialStart").value,end=+document.getElementById("trialEnd").value,minutes=+document.getElementById("trialMinutes").value;
     if(!Number.isFinite(start)||!Number.isFinite(end)||!Number.isFinite(minutes)||minutes<=0){document.getElementById("trialMsg").textContent="Enter valid temperatures and a duration greater than zero.";return;}
-    trials.push({id:Date.now()+"-"+Math.random().toString(36).slice(2),fanLoc:document.getElementById("trialFanLoc").value,fanMode:document.getElementById("trialFanMode").value,openWindows:trialWindowsFromForm(),start,end,minutes,notes:document.getElementById("trialNotes").value.trim()});
+    trials.push({id:newTrialId(),fanLoc:document.getElementById("trialFanLoc").value,fanMode:document.getElementById("trialFanMode").value,openWindows:trialWindowsFromForm(),start,end,minutes,notes:document.getElementById("trialNotes").value.trim()});
     saveTrials();renderTrials();document.getElementById("trialNotes").value="";document.getElementById("trialMsg").textContent="Measured trial added.";
   });
   document.getElementById("trialRows").addEventListener("click",e=>{
