@@ -13,6 +13,7 @@
     west:{label:"West",wall:"W",nx:-1,ny:0},
   };
   const WINDOW_IDS=Object.keys(WINDOWS);
+  const FAN_MODES=["out","in","exchange","off"];
   const windowLabel=name=>(WINDOWS[name]||WINDOWS.south).label;
   const windowState=open=>Object.fromEntries(WINDOW_IDS.map(name=>[name,open]));
   function normalizeOpenWindows(value,fanLoc,legacyOtherOpen){
@@ -41,6 +42,13 @@
     applyConfig(next,cfg);
     return next;
   }
+  function isValidTrial(t){
+    // Guards rendering against malformed stored records; openWindows stays optional (legacy otherOpen).
+    return Boolean(t&&typeof t==="object"
+      &&WINDOW_IDS.includes(t.fanLoc)&&FAN_MODES.includes(t.fanMode)
+      &&Number.isFinite(t.start)&&Number.isFinite(t.end)
+      &&Number.isFinite(t.minutes)&&t.minutes>0);
+  }
   function pressure(st, windowName){
     const wind=WIND[st.windDir]||WIND.S;
     const face=WINDOWS[windowName]||WINDOWS.south;
@@ -56,24 +64,33 @@
       return (preferHigh?pressure(st,name)>pressure(st,best):pressure(st,name)<pressure(st,best))?name:best;
     },null);
   }
+  function windBoost(st){
+    // Fractional wind assist (±) through the fan's through-path; 0 unless in/out with another opening.
+    if(st.fanMode!=="in"&&st.fanMode!=="out") return 0;
+    const others=availableWindows(st,otherWindows(st.fanLoc));
+    if(!others.length) return 0;
+    const otherW=chooseByPressure(st,others,st.fanMode==="out");
+    const intakeW=st.fanMode==="out"?otherW:st.fanLoc, exhaustW=st.fanMode==="out"?st.fanLoc:otherW;
+    return 0.25*(pressure(st,intakeW)-pressure(st,exhaustW))*(st.windSpeed/10);
+  }
+  function naturalFlow(st){
+    // Wind-driven cross-ventilation through whatever is open, fan ignored.
+    const openings=availableWindows(st);
+    if(openings.length<2) return openings.length?0.03:0.02; // <2 openings: no through-path
+    const intake=chooseByPressure(st,openings,true), exhaust=chooseByPressure(st,openings.filter(name=>name!==intake),false);
+    const draft=pressure(st,intake)-pressure(st,exhaust); // windward−leeward pressure gap, ≥0
+    return 0.05+0.35*draft*(st.windSpeed/10); // 0.05 calm/buoyant floor; rises with wind through a real pressure gap
+  }
+  const FLOW_MAX=2.3; // gauge calibration: best case ≈2.28 = out mode, fully wind-aligned, at the 30 mph slider max
   function flowModel(st){
-    const wsN=st.windSpeed/10, openings=availableWindows(st), others=availableWindows(st,otherWindows(st.fanLoc));
-    if(st.fanMode==="off"){
-      // Natural ventilation: with no fan, airflow is wind-driven cross-ventilation.
-      if(openings.length<2) return openings.length?0.03:0.02; // <2 openings: no through-path
-      const intake=chooseByPressure(st,openings,true), exhaust=chooseByPressure(st,openings.filter(name=>name!==intake),false);
-      const draft=pressure(st,intake)-pressure(st,exhaust); // windward−leeward pressure gap, ≥0
-      return 0.05+0.35*draft*wsN; // 0.05 calm/buoyant floor; rises with wind through a real pressure gap
-    }
-    if(st.fanMode==="exchange") return others.length?0.60:0.50;
-    if(!others.length) return st.fanMode==="out"?0.40:0.34;
-    const fanW=st.fanLoc, otherW=chooseByPressure(st,others,st.fanMode==="out");
-    let intakeW, exhaustW;
-    if(st.fanMode==="out"){ exhaustW=fanW; intakeW=otherW; } else { intakeW=fanW; exhaustW=otherW; }
-    const assist = pressure(st,intakeW) - pressure(st,exhaustW);
-    let flow = 1.0 * (1 + 0.25*assist*wsN);
-    if(st.fanMode==="out" && st.indoor>st.outdoor) flow += 0.08;
-    return Math.max(0.05, flow);
+    if(st.fanMode==="off") return naturalFlow(st);
+    const others=availableWindows(st,otherWindows(st.fanLoc));
+    let fanFlow;
+    if(st.fanMode==="exchange") fanFlow=others.length?0.60:0.50;
+    else if(!others.length) fanFlow=st.fanMode==="out"?0.40:0.34;
+    else fanFlow=Math.max(0.05, 1+windBoost(st)+(st.fanMode==="out"&&st.indoor>st.outdoor?0.08:0));
+    // The fan can't stop the wind cross-venting the same openings: never below the fan-off rate.
+    return Math.max(fanFlow,naturalFlow(st));
   }
   function airPath(st){
     const fanW=st.fanLoc, openings=availableWindows(st), others=availableWindows(st,otherWindows(fanW));
@@ -160,6 +177,7 @@ export {
   WIND,
   WINDOWS,
   WINDOW_IDS,
+  FAN_MODES,
   windowLabel,
   windowState,
   normalizeOpenWindows,
@@ -169,9 +187,13 @@ export {
   onlyOpen,
   applyConfig,
   configState,
+  isValidTrial,
   pressure,
   otherWindows,
   chooseByPressure,
+  windBoost,
+  naturalFlow,
+  FLOW_MAX,
   flowModel,
   airPath,
   geomFor,
