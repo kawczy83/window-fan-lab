@@ -116,6 +116,18 @@
     if(st.fanMode==="out") return {intake:otherW,exhaust:fanW,bidir:null};
     return {intake:fanW,exhaust:otherW,bidir:null};
   }
+  function bestConfigFor(st){
+    // Best fan placement/mode for the windows the user actually has open — never opens a closed one.
+    // Seal-up (fan off, all closed) stays a candidate: it's the right call when outdoor air is hotter.
+    const cooling=st.indoor>st.outdoor;
+    const candidates=availableWindows(st).flatMap(fanLoc=>
+      ["out","in","exchange"].map(fanMode=>({fanLoc,fanMode,openWindows:st.openWindows})));
+    candidates.push({fanLoc:st.fanLoc,fanMode:"off",openWindows:windowState(false)});
+    return candidates.reduce((best,cfg)=>{
+      const score=(cooling?1:-1)*flowModel(configState(st,cfg));
+      return !best||score>best.score?{cfg,score}:best;
+    },null).cfg;
+  }
 
   /* =================== GEOMETRY (per canvas) =================== */
   function geomFor(W,H){
@@ -205,6 +217,7 @@ export {
   FLOW_MAX,
   flowModel,
   airPath,
+  bestConfigFor,
   geomFor,
   winOf,
   makeSim,

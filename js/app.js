@@ -10,13 +10,13 @@ import {
   availableWindows,
   onlyOpen,
   applyConfig,
-  configState,
   isValidTrial,
   windBoost,
   windDominated,
   FLOW_MAX,
   flowModel,
   airPath,
+  bestConfigFor,
   otherWindows,
   geomFor,
   winOf,
@@ -281,18 +281,6 @@ import {
     });
   });
 
-  const BEST_CONFIGS=WINDOW_IDS.flatMap(fanLoc=>[
-    {fanLoc,fanMode:"out",openWindows:windowState(true)},
-    {fanLoc,fanMode:"in",openWindows:windowState(true)},
-    {fanLoc,fanMode:"exchange",openWindows:windowState(true)},
-  ]).concat([{fanLoc:"south",fanMode:"off",openWindows:windowState(false)}]);
-  function bestConfigFor(st){
-    const cooling=st.indoor>st.outdoor;
-    return BEST_CONFIGS.reduce((best,cfg)=>{
-      const score=(cooling?1:-1)*flowModel(configState(st,cfg));
-      return !best||score>best.score?{cfg,score}:best;
-    },null).cfg;
-  }
   function sandboxBestConfig(){return bestConfigFor(Object.assign({},sandbox.st,{indoor:sandboxStartIndoor}));}
   function renderBestButton(){
     const cfg=sandboxBestConfig(), modeLabel={out:"Out",in:"In",exchange:"Exchange"};

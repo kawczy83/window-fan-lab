@@ -5,6 +5,7 @@ import {
   airPath,
   applyConfig,
   availableWindows,
+  bestConfigFor,
   FAN_MODES,
   FLOW_MAX,
   flowModel,
@@ -242,6 +243,42 @@ test("a wind-aligned fan keeps its own through-path at any speed", () => {
 
   assert.equal(windDominated(aligned), false);
   assert.deepEqual(airPath(aligned), { intake: "north", exhaust: "south", bidir: null });
+});
+
+test("best config tracks which windows are open instead of assuming all-open", () => {
+  const allOpen = baseState();
+  allOpen.fanMode = "off"; // no fan placement constraint
+  const best = bestConfigFor(allOpen); // wind toward south: exhaust leeward
+  assert.equal(best.fanLoc, "south");
+  assert.equal(best.fanMode, "out");
+
+  const southClosed = baseState();
+  southClosed.fanMode = "off";
+  southClosed.openWindows = onlyOpen("north", "east", "west");
+  const shifted = bestConfigFor(southClosed);
+  assert.notEqual(shifted.fanLoc, "south"); // never puts the fan in a closed window
+  assert.equal(shifted.fanMode, "out");
+  assert.equal(shifted.openWindows.south, false); // and never reopens it
+});
+
+test("a single open window gets an exchange-mode recommendation", () => {
+  const oneWindow = baseState();
+  oneWindow.openWindows = onlyOpen("south");
+
+  assert.deepEqual(
+    { ...bestConfigFor(oneWindow), openWindows: undefined },
+    { fanLoc: "south", fanMode: "exchange", openWindows: undefined },
+  );
+});
+
+test("hotter outdoors still recommends sealing up", () => {
+  const warming = baseState();
+  warming.indoor = 64;
+  warming.outdoor = 74;
+
+  const best = bestConfigFor(warming);
+  assert.equal(best.fanMode, "off");
+  assert.deepEqual(best.openWindows, windowState(false));
 });
 
 test("fan still wins and flow stays physical at the 30 mph slider maximum", () => {
