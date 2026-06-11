@@ -271,6 +271,29 @@ test("a single open window gets an exchange-mode recommendation", () => {
   );
 });
 
+test("all windows closed while cooling suggests opening the best pair", () => {
+  const closedUp = baseState(); // wind toward south
+  closedUp.fanMode = "off";
+  closedUp.openWindows = windowState(false);
+
+  const best = bestConfigFor(closedUp);
+  assert.deepEqual(best.openWindows, onlyOpen("north", "south")); // windward + leeward pair
+  assert.equal(best.fanLoc, "south"); // exhaust through the leeward window
+  assert.equal(best.fanMode, "out");
+});
+
+test("all windows closed while warming still stays sealed", () => {
+  const sealed = baseState();
+  sealed.fanMode = "off";
+  sealed.openWindows = windowState(false);
+  sealed.indoor = 64;
+  sealed.outdoor = 74;
+
+  const best = bestConfigFor(sealed);
+  assert.equal(best.fanMode, "off");
+  assert.deepEqual(best.openWindows, windowState(false));
+});
+
 test("hotter outdoors still recommends sealing up", () => {
   const warming = baseState();
   warming.indoor = 64;

@@ -284,7 +284,10 @@ import {
   function sandboxBestConfig(){return bestConfigFor(Object.assign({},sandbox.st,{indoor:sandboxStartIndoor}));}
   function renderBestButton(){
     const cfg=sandboxBestConfig(), modeLabel={out:"Out",in:"In",exchange:"Exchange"};
-    const text=cfg.fanMode==="off"?"Fan off · all closed":`${windowLabel(cfg.fanLoc)} · ${modeLabel[cfg.fanMode]}`;
+    const opens=WINDOW_IDS.filter(name=>cfg.openWindows[name]&&!sandbox.st.openWindows[name]);
+    let text;
+    if(opens.length) text=`Open ${opens.map(windowLabel).join(" + ")} · fan ${cfg.fanMode==="off"?"off":`${modeLabel[cfg.fanMode]} at ${windowLabel(cfg.fanLoc)}`}`;
+    else text=cfg.fanMode==="off"?"Fan off · all closed":`${windowLabel(cfg.fanLoc)} · ${modeLabel[cfg.fanMode]}`;
     document.getElementById("sbBest").textContent="Load best: "+text;
   }
 
@@ -297,6 +300,7 @@ import {
     const cfg=sandboxBestConfig();applyConfig(sandbox.st,cfg);resetSim(sandbox,sandboxStartIndoor);
     setSegActive('.seg[data-sim="sb"][data-key="fanLoc"]',cfg.fanLoc);setSegActive('.seg[data-sim="sb"][data-key="fanMode"]',cfg.fanMode);
     renderWindowControls("sb");
+    renderBestButton(); // applying a pair suggestion opens windows, which changes what "best" reads as
   });
 
   // race env sliders

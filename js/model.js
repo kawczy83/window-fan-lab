@@ -117,12 +117,22 @@
     return {intake:fanW,exhaust:otherW,bidir:null};
   }
   function bestConfigFor(st){
-    // Best fan placement/mode for the windows the user actually has open — never opens a closed one.
+    // Best fan placement/mode for the windows the user actually has open — never opens a closed one,
+    // except when nothing is open while cooling: then suggest opening the best window pair.
     // Seal-up (fan off, all closed) stays a candidate: it's the right call when outdoor air is hotter.
-    const cooling=st.indoor>st.outdoor;
-    const candidates=availableWindows(st).flatMap(fanLoc=>
-      ["out","in","exchange"].map(fanMode=>({fanLoc,fanMode,openWindows:st.openWindows})));
-    candidates.push({fanLoc:st.fanLoc,fanMode:"off",openWindows:windowState(false)});
+    const cooling=st.indoor>st.outdoor, open=availableWindows(st), candidates=[];
+    if(cooling&&!open.length){
+      for(let i=0;i<WINDOW_IDS.length;i++)for(let j=i+1;j<WINDOW_IDS.length;j++){
+        const openWindows=onlyOpen(WINDOW_IDS[i],WINDOW_IDS[j]);
+        for(const fanLoc of [WINDOW_IDS[i],WINDOW_IDS[j]])
+          for(const fanMode of ["out","in","exchange"])candidates.push({fanLoc,fanMode,openWindows});
+        candidates.push({fanLoc:st.fanLoc,fanMode:"off",openWindows}); // natural cross-vent pair
+      }
+    }else{
+      for(const fanLoc of open)
+        for(const fanMode of ["out","in","exchange"])candidates.push({fanLoc,fanMode,openWindows:st.openWindows});
+      candidates.push({fanLoc:st.fanLoc,fanMode:"off",openWindows:windowState(false)});
+    }
     return candidates.reduce((best,cfg)=>{
       const score=(cooling?1:-1)*flowModel(configState(st,cfg));
       return !best||score>best.score?{cfg,score}:best;
