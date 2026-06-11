@@ -5,6 +5,16 @@ four-window bedroom. It provides a lightweight airflow simulation, a head-to-hea
 race mode, a historical wind rose, and a local trial log for measured cooling
 results.
 
+## Screenshots
+
+**Sandbox** — explore one configuration and watch the room cool:
+
+![Sandbox view: top-down room with a south-window fan exhausting, instruments, and controls](screenshots/sandbox.png)
+
+**Race mode** — two configurations head-to-head under the same weather:
+
+![Race view: two rooms racing to outdoor temperature, with the winner banner and cooling chart](screenshots/race.png)
+
 ## Features
 
 - Explore fan location, fan direction, individual window states, wind direction,
@@ -74,6 +84,9 @@ shows the dominant pressure-assisted airflow path.
 ├── js/
 │   ├── app.js
 │   └── model.js
+├── screenshots/
+│   ├── race.png
+│   └── sandbox.png
 └── tests/
     └── model.test.js
 ```
