@@ -81,28 +81,36 @@
     const draft=pressure(st,intake)-pressure(st,exhaust); // windward−leeward pressure gap, ≥0
     return 0.05+0.35*draft*(st.windSpeed/10); // 0.05 calm/buoyant floor; rises with wind through a real pressure gap
   }
+  function fanFlow(st){
+    // Flow the fan alone drives through its intended path, before the natural-vent floor.
+    const others=availableWindows(st,otherWindows(st.fanLoc));
+    if(st.fanMode==="exchange") return others.length?0.60:0.50;
+    if(!others.length) return st.fanMode==="out"?0.40:0.34;
+    return Math.max(0.05, 1+windBoost(st)+(st.fanMode==="out"&&st.indoor>st.outdoor?0.08:0));
+  }
+  function windDominated(st){
+    // Wind cross-vent outruns the fan: the openings, not the fan, set the flow and its direction.
+    return st.fanMode!=="off"&&naturalFlow(st)>fanFlow(st);
+  }
   const FLOW_MAX=2.3; // gauge calibration: best case ≈2.28 = out mode, fully wind-aligned, at the 30 mph slider max
   function flowModel(st){
     if(st.fanMode==="off") return naturalFlow(st);
-    const others=availableWindows(st,otherWindows(st.fanLoc));
-    let fanFlow;
-    if(st.fanMode==="exchange") fanFlow=others.length?0.60:0.50;
-    else if(!others.length) fanFlow=st.fanMode==="out"?0.40:0.34;
-    else fanFlow=Math.max(0.05, 1+windBoost(st)+(st.fanMode==="out"&&st.indoor>st.outdoor?0.08:0));
     // The fan can't stop the wind cross-venting the same openings: never below the fan-off rate.
-    return Math.max(fanFlow,naturalFlow(st));
+    return Math.max(fanFlow(st),naturalFlow(st));
+  }
+  function naturalPath(st){
+    const openings=availableWindows(st);
+    if(openings.length>1){
+      const intake=chooseByPressure(st,openings,true);
+      const exhaust=chooseByPressure(st,openings.filter(name=>name!==intake),false);
+      return {intake,exhaust,bidir:null};
+    }
+    return {intake:null,exhaust:null,bidir:openings[0]||null};
   }
   function airPath(st){
-    const fanW=st.fanLoc, openings=availableWindows(st), others=availableWindows(st,otherWindows(fanW));
-    if(st.fanMode==="off"){
-      if(openings.length>1){
-        const intake=chooseByPressure(st,openings,true);
-        const exhaust=chooseByPressure(st,openings.filter(name=>name!==intake),false);
-        return {intake,exhaust,bidir:null};
-      }
-      if(openings.length) return {intake:null,exhaust:null,bidir:openings[0]};
-      return {intake:null,exhaust:null,bidir:null};
-    }
+    // An overpowered fan doesn't set the direction: show the wind's through-path instead.
+    if(st.fanMode==="off"||windDominated(st)) return naturalPath(st);
+    const fanW=st.fanLoc, others=availableWindows(st,otherWindows(fanW));
     if(st.fanMode==="exchange") return {intake:null,exhaust:null,bidir:fanW};
     const otherW=chooseByPressure(st,others,st.fanMode==="out");
     if(st.fanMode==="out") return {intake:otherW,exhaust:fanW,bidir:null};
@@ -193,6 +201,7 @@ export {
   chooseByPressure,
   windBoost,
   naturalFlow,
+  windDominated,
   FLOW_MAX,
   flowModel,
   airPath,

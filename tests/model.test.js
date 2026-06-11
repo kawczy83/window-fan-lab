@@ -15,6 +15,7 @@ import {
   WIND,
   WINDOW_IDS,
   windBoost,
+  windDominated,
   windowState,
 } from "../js/model.js";
 
@@ -209,6 +210,38 @@ test("malformed stored trials are rejected instead of crashing the app", () => {
   assert.equal(isValidTrial({ fanLoc: "south", fanMode: "out", start: 74, end: 72, minutes: 30 }), true);
   // Legacy records carry otherOpen instead of openWindows — they must stay loadable.
   assert.equal(isValidTrial({ fanLoc: "west", fanMode: "off", otherOpen: true, start: 80, end: 76, minutes: 45 }), true);
+});
+
+test("an overpowered fan's air path follows the wind, not the fan", () => {
+  const opposed = baseState(); // exhausting into the windward north face
+  opposed.fanLoc = "north";
+
+  // Light wind: the fan still sets the direction — in the far window, out the fan.
+  assert.equal(windDominated(opposed), false);
+  assert.deepEqual(airPath(opposed), { intake: "east", exhaust: "north", bidir: null });
+
+  // 30 mph: natural cross-vent outruns the fan, so the path reverses to windward → leeward.
+  opposed.windSpeed = 30;
+  assert.equal(windDominated(opposed), true);
+  assert.deepEqual(airPath(opposed), { intake: "north", exhaust: "south", bidir: null });
+});
+
+test("strong wind also overrides the exchange-mode bidirectional path", () => {
+  const exch = baseState();
+  exch.fanMode = "exchange";
+  assert.deepEqual(airPath(exch), { intake: null, exhaust: null, bidir: "south" });
+
+  exch.windSpeed = 30;
+  assert.equal(windDominated(exch), true);
+  assert.deepEqual(airPath(exch), { intake: "north", exhaust: "south", bidir: null });
+});
+
+test("a wind-aligned fan keeps its own through-path at any speed", () => {
+  const aligned = baseState(); // south exhaust, wind toward south
+  aligned.windSpeed = 30;
+
+  assert.equal(windDominated(aligned), false);
+  assert.deepEqual(airPath(aligned), { intake: "north", exhaust: "south", bidir: null });
 });
 
 test("fan still wins and flow stays physical at the 30 mph slider maximum", () => {
