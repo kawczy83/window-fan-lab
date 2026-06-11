@@ -10,12 +10,13 @@ import {
   availableWindows,
   onlyOpen,
   applyConfig,
-  configState,
   isValidTrial,
   windBoost,
+  windDominated,
   FLOW_MAX,
   flowModel,
   airPath,
+  bestConfigFor,
   otherWindows,
   geomFor,
   winOf,
@@ -151,6 +152,7 @@ import {
     let msg;
     if(off) msg=openings.length>1?`Fan is <b>off</b> — the room drifts through gentle natural exchange between open windows.`:`Fan is <b>off</b> with fewer than two open windows — barely any exchange.`;
     else if(stalled) msg=`Fan ${st.fanMode==="out"?"exhausting":"drawing"} without another open window. One-in/one-out rule kicks in — it stalls. Open a second window.`;
+    else if(windDominated(st)) msg=`Wind toward ${dirName} <b>overpowers the fan</b>: air streams in via <b>${windowLabel(path.intake)}</b> and out via <b>${windowLabel(path.exhaust)}</b> at the natural cross-vent rate.`;
     else if(st.fanMode==="exchange") msg=`<b>Exchange</b> mode: one blade in, one out, through a single window. Works, but a fan + other open windows moves more air.`;
     else {const intake=windowLabel(path.intake), exhaust=windowLabel(path.exhaust), boost=windBoost(st);
       const windNote=boost>0.05?"<b>helping</b>":(boost<-0.05?"working against the fan":"a minor factor");
@@ -279,22 +281,13 @@ import {
     });
   });
 
-  const BEST_CONFIGS=WINDOW_IDS.flatMap(fanLoc=>[
-    {fanLoc,fanMode:"out",openWindows:windowState(true)},
-    {fanLoc,fanMode:"in",openWindows:windowState(true)},
-    {fanLoc,fanMode:"exchange",openWindows:windowState(true)},
-  ]).concat([{fanLoc:"south",fanMode:"off",openWindows:windowState(false)}]);
-  function bestConfigFor(st){
-    const cooling=st.indoor>st.outdoor;
-    return BEST_CONFIGS.reduce((best,cfg)=>{
-      const score=(cooling?1:-1)*flowModel(configState(st,cfg));
-      return !best||score>best.score?{cfg,score}:best;
-    },null).cfg;
-  }
   function sandboxBestConfig(){return bestConfigFor(Object.assign({},sandbox.st,{indoor:sandboxStartIndoor}));}
   function renderBestButton(){
     const cfg=sandboxBestConfig(), modeLabel={out:"Out",in:"In",exchange:"Exchange"};
-    const text=cfg.fanMode==="off"?"Fan off · all closed":`${windowLabel(cfg.fanLoc)} · ${modeLabel[cfg.fanMode]}`;
+    const opens=WINDOW_IDS.filter(name=>cfg.openWindows[name]&&!sandbox.st.openWindows[name]);
+    let text;
+    if(opens.length) text=`Open ${opens.map(windowLabel).join(" + ")} · fan ${cfg.fanMode==="off"?"off":`${modeLabel[cfg.fanMode]} at ${windowLabel(cfg.fanLoc)}`}`;
+    else text=cfg.fanMode==="off"?"Fan off · all closed":`${windowLabel(cfg.fanLoc)} · ${modeLabel[cfg.fanMode]}`;
     document.getElementById("sbBest").textContent="Load best: "+text;
   }
 
@@ -307,6 +300,7 @@ import {
     const cfg=sandboxBestConfig();applyConfig(sandbox.st,cfg);resetSim(sandbox,sandboxStartIndoor);
     setSegActive('.seg[data-sim="sb"][data-key="fanLoc"]',cfg.fanLoc);setSegActive('.seg[data-sim="sb"][data-key="fanMode"]',cfg.fanMode);
     renderWindowControls("sb");
+    renderBestButton(); // applying a pair suggestion opens windows, which changes what "best" reads as
   });
 
   // race env sliders

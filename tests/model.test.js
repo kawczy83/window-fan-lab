@@ -5,6 +5,7 @@ import {
   airPath,
   applyConfig,
   availableWindows,
+  bestConfigFor,
   FAN_MODES,
   FLOW_MAX,
   flowModel,
@@ -15,6 +16,7 @@ import {
   WIND,
   WINDOW_IDS,
   windBoost,
+  windDominated,
   windowState,
 } from "../js/model.js";
 
@@ -209,6 +211,97 @@ test("malformed stored trials are rejected instead of crashing the app", () => {
   assert.equal(isValidTrial({ fanLoc: "south", fanMode: "out", start: 74, end: 72, minutes: 30 }), true);
   // Legacy records carry otherOpen instead of openWindows — they must stay loadable.
   assert.equal(isValidTrial({ fanLoc: "west", fanMode: "off", otherOpen: true, start: 80, end: 76, minutes: 45 }), true);
+});
+
+test("an overpowered fan's air path follows the wind, not the fan", () => {
+  const opposed = baseState(); // exhausting into the windward north face
+  opposed.fanLoc = "north";
+
+  // Light wind: the fan still sets the direction — in the far window, out the fan.
+  assert.equal(windDominated(opposed), false);
+  assert.deepEqual(airPath(opposed), { intake: "east", exhaust: "north", bidir: null });
+
+  // 30 mph: natural cross-vent outruns the fan, so the path reverses to windward → leeward.
+  opposed.windSpeed = 30;
+  assert.equal(windDominated(opposed), true);
+  assert.deepEqual(airPath(opposed), { intake: "north", exhaust: "south", bidir: null });
+});
+
+test("strong wind also overrides the exchange-mode bidirectional path", () => {
+  const exch = baseState();
+  exch.fanMode = "exchange";
+  assert.deepEqual(airPath(exch), { intake: null, exhaust: null, bidir: "south" });
+
+  exch.windSpeed = 30;
+  assert.equal(windDominated(exch), true);
+  assert.deepEqual(airPath(exch), { intake: "north", exhaust: "south", bidir: null });
+});
+
+test("a wind-aligned fan keeps its own through-path at any speed", () => {
+  const aligned = baseState(); // south exhaust, wind toward south
+  aligned.windSpeed = 30;
+
+  assert.equal(windDominated(aligned), false);
+  assert.deepEqual(airPath(aligned), { intake: "north", exhaust: "south", bidir: null });
+});
+
+test("best config tracks which windows are open instead of assuming all-open", () => {
+  const allOpen = baseState();
+  allOpen.fanMode = "off"; // no fan placement constraint
+  const best = bestConfigFor(allOpen); // wind toward south: exhaust leeward
+  assert.equal(best.fanLoc, "south");
+  assert.equal(best.fanMode, "out");
+
+  const southClosed = baseState();
+  southClosed.fanMode = "off";
+  southClosed.openWindows = onlyOpen("north", "east", "west");
+  const shifted = bestConfigFor(southClosed);
+  assert.notEqual(shifted.fanLoc, "south"); // never puts the fan in a closed window
+  assert.equal(shifted.fanMode, "out");
+  assert.equal(shifted.openWindows.south, false); // and never reopens it
+});
+
+test("a single open window gets an exchange-mode recommendation", () => {
+  const oneWindow = baseState();
+  oneWindow.openWindows = onlyOpen("south");
+
+  assert.deepEqual(
+    { ...bestConfigFor(oneWindow), openWindows: undefined },
+    { fanLoc: "south", fanMode: "exchange", openWindows: undefined },
+  );
+});
+
+test("all windows closed while cooling suggests opening the best pair", () => {
+  const closedUp = baseState(); // wind toward south
+  closedUp.fanMode = "off";
+  closedUp.openWindows = windowState(false);
+
+  const best = bestConfigFor(closedUp);
+  assert.deepEqual(best.openWindows, onlyOpen("north", "south")); // windward + leeward pair
+  assert.equal(best.fanLoc, "south"); // exhaust through the leeward window
+  assert.equal(best.fanMode, "out");
+});
+
+test("all windows closed while warming still stays sealed", () => {
+  const sealed = baseState();
+  sealed.fanMode = "off";
+  sealed.openWindows = windowState(false);
+  sealed.indoor = 64;
+  sealed.outdoor = 74;
+
+  const best = bestConfigFor(sealed);
+  assert.equal(best.fanMode, "off");
+  assert.deepEqual(best.openWindows, windowState(false));
+});
+
+test("hotter outdoors still recommends sealing up", () => {
+  const warming = baseState();
+  warming.indoor = 64;
+  warming.outdoor = 74;
+
+  const best = bestConfigFor(warming);
+  assert.equal(best.fanMode, "off");
+  assert.deepEqual(best.openWindows, windowState(false));
 });
 
 test("fan still wins and flow stays physical at the 30 mph slider maximum", () => {

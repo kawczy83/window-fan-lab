@@ -81,32 +81,62 @@
     const draft=pressure(st,intake)-pressure(st,exhaust); // windward−leeward pressure gap, ≥0
     return 0.05+0.35*draft*(st.windSpeed/10); // 0.05 calm/buoyant floor; rises with wind through a real pressure gap
   }
+  function fanFlow(st){
+    // Flow the fan alone drives through its intended path, before the natural-vent floor.
+    const others=availableWindows(st,otherWindows(st.fanLoc));
+    if(st.fanMode==="exchange") return others.length?0.60:0.50;
+    if(!others.length) return st.fanMode==="out"?0.40:0.34;
+    return Math.max(0.05, 1+windBoost(st)+(st.fanMode==="out"&&st.indoor>st.outdoor?0.08:0));
+  }
+  function windDominated(st){
+    // Wind cross-vent outruns the fan: the openings, not the fan, set the flow and its direction.
+    return st.fanMode!=="off"&&naturalFlow(st)>fanFlow(st);
+  }
   const FLOW_MAX=2.3; // gauge calibration: best case ≈2.28 = out mode, fully wind-aligned, at the 30 mph slider max
   function flowModel(st){
     if(st.fanMode==="off") return naturalFlow(st);
-    const others=availableWindows(st,otherWindows(st.fanLoc));
-    let fanFlow;
-    if(st.fanMode==="exchange") fanFlow=others.length?0.60:0.50;
-    else if(!others.length) fanFlow=st.fanMode==="out"?0.40:0.34;
-    else fanFlow=Math.max(0.05, 1+windBoost(st)+(st.fanMode==="out"&&st.indoor>st.outdoor?0.08:0));
     // The fan can't stop the wind cross-venting the same openings: never below the fan-off rate.
-    return Math.max(fanFlow,naturalFlow(st));
+    return Math.max(fanFlow(st),naturalFlow(st));
+  }
+  function naturalPath(st){
+    const openings=availableWindows(st);
+    if(openings.length>1){
+      const intake=chooseByPressure(st,openings,true);
+      const exhaust=chooseByPressure(st,openings.filter(name=>name!==intake),false);
+      return {intake,exhaust,bidir:null};
+    }
+    return {intake:null,exhaust:null,bidir:openings[0]||null};
   }
   function airPath(st){
-    const fanW=st.fanLoc, openings=availableWindows(st), others=availableWindows(st,otherWindows(fanW));
-    if(st.fanMode==="off"){
-      if(openings.length>1){
-        const intake=chooseByPressure(st,openings,true);
-        const exhaust=chooseByPressure(st,openings.filter(name=>name!==intake),false);
-        return {intake,exhaust,bidir:null};
-      }
-      if(openings.length) return {intake:null,exhaust:null,bidir:openings[0]};
-      return {intake:null,exhaust:null,bidir:null};
-    }
+    // An overpowered fan doesn't set the direction: show the wind's through-path instead.
+    if(st.fanMode==="off"||windDominated(st)) return naturalPath(st);
+    const fanW=st.fanLoc, others=availableWindows(st,otherWindows(fanW));
     if(st.fanMode==="exchange") return {intake:null,exhaust:null,bidir:fanW};
     const otherW=chooseByPressure(st,others,st.fanMode==="out");
     if(st.fanMode==="out") return {intake:otherW,exhaust:fanW,bidir:null};
     return {intake:fanW,exhaust:otherW,bidir:null};
+  }
+  function bestConfigFor(st){
+    // Best fan placement/mode for the windows the user actually has open — never opens a closed one,
+    // except when nothing is open while cooling: then suggest opening the best window pair.
+    // Seal-up (fan off, all closed) stays a candidate: it's the right call when outdoor air is hotter.
+    const cooling=st.indoor>st.outdoor, open=availableWindows(st), candidates=[];
+    if(cooling&&!open.length){
+      for(let i=0;i<WINDOW_IDS.length;i++)for(let j=i+1;j<WINDOW_IDS.length;j++){
+        const openWindows=onlyOpen(WINDOW_IDS[i],WINDOW_IDS[j]);
+        for(const fanLoc of [WINDOW_IDS[i],WINDOW_IDS[j]])
+          for(const fanMode of ["out","in","exchange"])candidates.push({fanLoc,fanMode,openWindows});
+        candidates.push({fanLoc:st.fanLoc,fanMode:"off",openWindows}); // natural cross-vent pair
+      }
+    }else{
+      for(const fanLoc of open)
+        for(const fanMode of ["out","in","exchange"])candidates.push({fanLoc,fanMode,openWindows:st.openWindows});
+      candidates.push({fanLoc:st.fanLoc,fanMode:"off",openWindows:windowState(false)});
+    }
+    return candidates.reduce((best,cfg)=>{
+      const score=(cooling?1:-1)*flowModel(configState(st,cfg));
+      return !best||score>best.score?{cfg,score}:best;
+    },null).cfg;
   }
 
   /* =================== GEOMETRY (per canvas) =================== */
@@ -193,9 +223,11 @@ export {
   chooseByPressure,
   windBoost,
   naturalFlow,
+  windDominated,
   FLOW_MAX,
   flowModel,
   airPath,
+  bestConfigFor,
   geomFor,
   winOf,
   makeSim,
