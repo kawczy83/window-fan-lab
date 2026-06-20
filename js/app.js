@@ -106,7 +106,7 @@ import {
     const cx=cv.getContext("2d"),CW=cv.width,CH=cv.height,st=sim.st;
     cx.clearRect(0,0,CW,CH);
     const top=14,bot=CH-22,left=34,right=CW-10;
-    const tMin=Math.min(st.outdoor-2,...sim.hist,60), tMax=Math.max(78,...sim.hist);
+    const tMin=Math.min(st.outdoor-2,...sim.hist,60), tMax=Math.max(78,st.outdoor,...sim.hist);
     const yOf=t=>bot-((t-tMin)/(tMax-tMin))*(bot-top);
     cx.strokeStyle="#1f2734";cx.lineWidth=1;cx.fillStyle="#5b6b86";cx.font="9px 'JetBrains Mono'";cx.textAlign="right";
     for(let k=0;k<=4;k++){const tv=tMin+(tMax-tMin)*k/4,y=yOf(tv);cx.beginPath();cx.moveTo(left,y);cx.lineTo(right,y);cx.stroke();cx.fillText(tv.toFixed(0),left-5,y+3);}
@@ -125,7 +125,7 @@ import {
     cx.clearRect(0,0,CW,CH);
     const top=14,bot=CH-22,left=34,right=CW-10;
     const all=a.hist.concat(b.hist);
-    const tMin=Math.min(out-2,...all,60), tMax=Math.max(78,...all);
+    const tMin=Math.min(out-2,...all,60), tMax=Math.max(78,out,...all);
     const yOf=t=>bot-((t-tMin)/(tMax-tMin))*(bot-top);
     cx.strokeStyle="#1f2734";cx.lineWidth=1;cx.fillStyle="#5b6b86";cx.font="9px 'JetBrains Mono'";cx.textAlign="right";
     for(let k=0;k<=4;k++){const tv=tMin+(tMax-tMin)*k/4,y=yOf(tv);cx.beginPath();cx.moveTo(left,y);cx.lineTo(right,y);cx.stroke();cx.fillText(tv.toFixed(0),left-5,y+3);}
@@ -220,12 +220,23 @@ import {
       drawChartRace(raChart,A,B);
       // winner detection (identical configs cross the line in the same step — call that a dead heat)
       if(raceRunning && !winner && !raceTie){
-        if(A.doneAt && B.doneAt && Math.abs(A.doneAt-B.doneAt)<1e-9){
-          raceTie=true;
-          document.getElementById("winbar").className="winbar winner";
-          document.getElementById("winbar").innerHTML=`🏁 Dead heat — both configs reach outdoor temp in ${A.doneAt.toFixed(1)} relative units`;
-        } else if(A.doneAt || B.doneAt){
-          winner = A.doneAt && (!B.doneAt || A.doneAt<=B.doneAt) ? A : B;
+        const warming = A.st.outdoor > raceStartIndoor;
+        if(A.doneAt && B.doneAt){
+          if(Math.abs(A.doneAt-B.doneAt)<1e-9){
+            raceTie=true;
+            document.getElementById("winbar").className="winbar winner";
+            document.getElementById("winbar").innerHTML=`🏁 Dead heat — both configs reach outdoor temp in ${A.doneAt.toFixed(1)} relative units`;
+          } else {
+            winner = warming ? (A.doneAt>=B.doneAt?A:B) : (A.doneAt<=B.doneAt?A:B);
+            const wname=winner===A?"A":"B", wt=winner.doneAt.toFixed(1);
+            document.getElementById("winbar").className="winbar winner";
+            document.getElementById("winbar").innerHTML = warming
+              ? `🏁 Config ${wname} resists warming the longest — last to reach outdoor temp at ${wt} relative units`
+              : `🏁 Config ${wname} reaches outdoor temp first — ${wt} relative units`;
+          }
+        } else if(!warming && (A.doneAt || B.doneAt)){
+          // Cooling: first to finish wins immediately. Warming waits for both so "last" is known.
+          winner = A.doneAt ? A : B;
           const wname=winner===A?"A":"B", wt=winner.doneAt.toFixed(1);
           document.getElementById("winbar").className="winbar winner";
           document.getElementById("winbar").innerHTML=`🏁 Config ${wname} reaches outdoor temp first — ${wt} relative units`;
@@ -307,7 +318,7 @@ import {
   document.getElementById("raWs").addEventListener("input",e=>{A.st.windSpeed=B.st.windSpeed=+e.target.value;document.getElementById("raWsVal").textContent=e.target.value;});
   document.getElementById("raIt").addEventListener("input",e=>{raceStartIndoor=+e.target.value;document.getElementById("raItVal").textContent=e.target.value+"°F";resetRace();});
   document.getElementById("raOt").addEventListener("input",e=>{A.st.outdoor=B.st.outdoor=+e.target.value;document.getElementById("raOtVal").textContent=e.target.value+"°F";});
-  function resetRace(){resetSim(A,raceStartIndoor);resetSim(B,raceStartIndoor);raceRunning=false;winner=null;raceTie=false;document.getElementById("winbar").className="winbar";document.getElementById("winbar").innerHTML="First to reach outdoor temp wins in relative simulation time. Press Start.";document.getElementById("runnerA").classList.remove("win");document.getElementById("runnerB").classList.remove("win");}
+  function resetRace(){resetSim(A,raceStartIndoor);resetSim(B,raceStartIndoor);raceRunning=false;winner=null;raceTie=false;document.getElementById("winbar").className="winbar";const warming=A.st.outdoor>raceStartIndoor;document.getElementById("winbar").innerHTML=warming?"Last to reach outdoor temp wins (best insulation) in relative simulation time. Press Start.":"First to reach outdoor temp wins in relative simulation time. Press Start.";document.getElementById("runnerA").classList.remove("win");document.getElementById("runnerB").classList.remove("win");}
   document.getElementById("raReset").addEventListener("click",resetRace);
   document.getElementById("raStart").addEventListener("click",()=>{resetRace();raceRunning=true;document.getElementById("winbar").innerHTML="Racing…";});
 

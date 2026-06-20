@@ -51,7 +51,7 @@ test("isolating the fan removes its through-path and reduces airflow", () => {
   isolatedFan.openWindows = onlyOpen("south");
 
   assert.equal(airPath(isolatedFan).intake, null);
-  assert.equal(flowModel(isolatedFan), 0.4);
+  assert.equal(flowModel(isolatedFan), 0.05);
   assert.ok(flowModel(openPath) > flowModel(isolatedFan));
 });
 

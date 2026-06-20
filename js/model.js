@@ -85,8 +85,8 @@
     // Flow the fan alone drives through its intended path, before the natural-vent floor.
     const others=availableWindows(st,otherWindows(st.fanLoc));
     if(st.fanMode==="exchange") return others.length?0.60:0.50;
-    if(!others.length) return st.fanMode==="out"?0.40:0.34;
-    return Math.max(0.05, 1+windBoost(st)+(st.fanMode==="out"&&st.indoor>st.outdoor?0.08:0));
+    if(!others.length) return 0.05; // no through-path: fan short-circuits, only turbulent mixing
+    return Math.max(0.05, 1+windBoost(st)+((st.fanMode==="in"||st.fanMode==="out")&&st.indoor>st.outdoor?0.08:0));
   }
   function windDominated(st){
     // Wind cross-vent outruns the fan: the openings, not the fan, set the flow and its direction.
@@ -133,9 +133,15 @@
         for(const fanMode of ["out","in","exchange"])candidates.push({fanLoc,fanMode,openWindows:st.openWindows});
       candidates.push({fanLoc:st.fanLoc,fanMode:"off",openWindows:windowState(false)});
     }
+    // Tiebreak: in/out through a windward+leeward pair move equal air — prefer "out" (exhausting out
+    // the downwind side is the canonical, gust-stable recommendation) so the suggestion stays stable.
+    const modeRank={out:0,in:1,exchange:2,off:3};
     return candidates.reduce((best,cfg)=>{
       const score=(cooling?1:-1)*flowModel(configState(st,cfg));
-      return !best||score>best.score?{cfg,score}:best;
+      if(!best) return {cfg,score};
+      if(score>best.score+1e-9) return {cfg,score};
+      if(Math.abs(score-best.score)<=1e-9 && modeRank[cfg.fanMode]<modeRank[best.cfg.fanMode]) return {cfg,score};
+      return best;
     },null).cfg;
   }
 
