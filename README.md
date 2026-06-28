@@ -83,11 +83,18 @@ shows the dominant pressure-assisted airflow path.
 ├── styles.css
 ├── js/
 │   ├── app.js
-│   └── model.js
+│   ├── charts.js
+│   ├── dom.js
+│   ├── draw.js
+│   ├── model.js
+│   ├── race.js
+│   ├── trials.js
+│   └── wind-rose.js
 ├── screenshots/
 │   ├── race.png
 │   └── sandbox.png
 └── tests/
+    ├── app-contract.test.js
     └── model.test.js
 ```
 

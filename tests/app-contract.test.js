@@ -7,7 +7,12 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 const indexHtml = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
-const appJs = fs.readFileSync(new URL("../js/app.js", import.meta.url), "utf8");
+const jsDir = new URL("../js/", import.meta.url);
+const jsFileNames = fs.readdirSync(jsDir).filter((name) => name.endsWith(".js")).sort();
+const jsSources = Object.fromEntries(
+  jsFileNames.map((name) => [name, fs.readFileSync(new URL(name, jsDir), "utf8")]),
+);
+const allJs = Object.values(jsSources).join("\n");
 
 function matches(source, pattern) {
   return [...source.matchAll(pattern)].map((match) => match[1]);
@@ -78,8 +83,16 @@ test("index.html has unique element IDs", () => {
 
 test("app DOM references all point at elements in index.html", () => {
   const ids = new Set(matches(indexHtml, /\bid="([^"]+)"/g));
-  const refs = matches(appJs, /(?:getElementById|byId)\(\s*["']([^"']+)["']\s*\)/g);
+  const refs = matches(allJs, /(?:getElementById|byId)\(\s*["']([^"']+)["']\s*\)/g);
   const missing = refs.filter((id) => !ids.has(id));
+
+  assert.deepEqual([...new Set(missing)], []);
+});
+
+test("local JavaScript module imports resolve to files in js", () => {
+  const files = new Set(jsFileNames);
+  const imports = matches(allJs, /from\s+["']\.\/([^"']+\.js)["']/g);
+  const missing = imports.filter((name) => !files.has(name));
 
   assert.deepEqual([...new Set(missing)], []);
 });
@@ -110,11 +123,11 @@ test("static server returns the app entrypoint and local assets", async () => {
         contentType: "text/javascript",
         body: 'from "./model.js";',
       },
-      {
-        pathname: "/js/model.js",
+      ...jsFileNames.filter((name) => name !== "app.js").map((name) => ({
+        pathname: `/js/${name}`,
         contentType: "text/javascript",
-        body: "export {",
-      },
+        body: jsSources[name].slice(0, 16),
+      })),
     ]) {
       const response = await fetch(`${baseUrl}${asset.pathname}`);
       const text = await response.text();
