@@ -10,6 +10,7 @@ import {
   windBoost,
   windDominated,
   FLOW_MAX,
+  HIST_MAX,
   flowModel,
   airPath,
   bestConfigFor,
@@ -21,7 +22,7 @@ import {
   stepParticles,
 } from "./model.js";
 import { getDomRefs, setLeadingText } from "./dom.js";
-import { tempColor, drawRoom } from "./draw.js";
+import { prepCanvas, tempColor, drawRoom } from "./draw.js";
 import { drawChartSingle } from "./charts.js";
 import { createRaceController } from "./race.js";
 import { createWindRose } from "./wind-rose.js";
@@ -46,6 +47,7 @@ import { createTrialsController } from "./trials.js";
 
   /* =================== STATE & LOOP =================== */
   let mode="sandbox", SPEED=1, sandboxStartIndoor=74;
+  const REDUCED_MOTION=Boolean(window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches);
   const sandbox=makeSim();
   const A=makeSim({fanLoc:"south",fanMode:"out"});
   const B=makeSim({fanLoc:"south",fanMode:"in"});
@@ -61,32 +63,50 @@ import { createTrialsController } from "./trials.js";
 
   const refs=getDomRefs();
   const {
-    sbRoom,sbChart,raRoom,rbRoom,raChart,sbIn,sbOut,sbFlowBar,sbFlowPct,sbStatus,
+    sbRoom,sbChart,raRoom,rbRoom,raChart,sbIn,sbOut,sbFlowBar,sbFlowPct,sbStatus,legendIn,legendOut,
     sbWs,sbWsVal,sbIt,sbItVal,sbOt,sbOtVal,sbReset,sbBest,
     modeSwitch,sandboxView,raceView,speedSeg,currentWindDir,currentWs,currentWsVal,applyCurrentWind,
   }=refs;
-  const sbCtx=sbRoom.getContext("2d"), sbGeo=geomFor(sbRoom.width,sbRoom.height);
-  const raCtx=raRoom.getContext("2d"), raGeo=geomFor(raRoom.width,raRoom.height);
-  const rbCtx=rbRoom.getContext("2d"), rbGeo=geomFor(rbRoom.width,rbRoom.height);
+  const sbP=prepCanvas(sbRoom), sbCtx=sbP.ctx, sbGeo=geomFor(sbP.W,sbP.H);
+  const raP=prepCanvas(raRoom), raCtx=raP.ctx, raGeo=geomFor(raP.W,raP.H);
+  const rbP=prepCanvas(rbRoom), rbCtx=rbP.ctx, rbGeo=geomFor(rbP.W,rbP.H);
+  const sbChartP=prepCanvas(sbChart), raChartP=prepCanvas(raChart);
+
+  let legendWarmIn=null;
+  function renderLegend(){
+    const warmIn=sandbox.st.outdoor>sandbox.st.indoor;
+    if(warmIn===legendWarmIn)return;
+    legendWarmIn=warmIn;
+    legendIn.querySelector(".dot").style.background=warmIn?"var(--warm)":"var(--cool)";
+    legendOut.querySelector(".dot").style.background=warmIn?"var(--cool)":"var(--warm)";
+    legendIn.lastChild.nodeValue=warmIn?"warm outdoor air in":"cool outdoor air in";
+    legendOut.lastChild.nodeValue=warmIn?"cool indoor air out":"warm indoor air out";
+  }
 
   let last=performance.now();
   function tick(now){
-    let dt=Math.min(0.05,(now-last)/1000)*SPEED; last=now;
+    const realDt=Math.min(0.05,(now-last)/1000); last=now;
+    const dt=realDt*SPEED, fscale=realDt*60; // fscale: animation step in 60 Hz frame units, refresh-rate independent
 
     if(mode==="sandbox"){
       const rate=integrate(sandbox,dt);
-      spawn(sandbox,sbGeo,rate); stepParticles(sandbox,sbGeo);
-      sandbox.fanAngle += (sandbox.st.fanMode==="off"?0:0.06+rate*0.22)*(sandbox.st.fanMode==="in"?-1:1)*SPEED;
+      if(!REDUCED_MOTION){
+        spawn(sandbox,sbGeo,rate,fscale); stepParticles(sandbox,sbGeo,fscale);
+        sandbox.fanAngle += (sandbox.st.fanMode==="off"?0:0.06+rate*0.22)*(sandbox.st.fanMode==="in"?-1:1)*SPEED*fscale;
+      }
       drawRoom(sbCtx,sbGeo,sandbox);
-      if(now-sandbox.lastHist>100){sandbox.hist.push(sandbox.st.indoor);if(sandbox.hist.length>240)sandbox.hist.shift();sandbox.lastHist=now;}
-      drawChartSingle(sbChart,sandbox);
+      sandbox.histT+=dt;
+      if(sandbox.histT-sandbox.lastHist>=0.1){sandbox.hist.push(sandbox.st.indoor);if(sandbox.hist.length>HIST_MAX)sandbox.hist.shift();sandbox.lastHist=sandbox.histT;}
+      drawChartSingle(sbChartP,sandbox);
       setLeadingText(sbIn,sandbox.st.indoor.toFixed(1));
       sbIn.style.color=tempColor(sandbox.st,sandbox.st.indoor);
       setLeadingText(sbOut,String(sandbox.st.outdoor));
+      sbOut.style.color=tempColor(sandbox.st,sandbox.st.outdoor);
+      renderLegend();
       const pct=Math.round(Math.min(1,rate/FLOW_MAX)*100);
       sbFlowBar.style.width=pct+"%";sbFlowPct.textContent=pct+"%";
       sbStatus.innerHTML=statusText(sandbox.st);
-    } else race.tick(now,dt);
+    } else race.tick(now,dt,fscale);
     requestAnimationFrame(tick);
   }
 
@@ -165,12 +185,13 @@ import { createTrialsController } from "./trials.js";
     A,B,refs,
     geos:{A:raGeo,B:rbGeo},
     contexts:{A:raCtx,B:rbCtx},
-    chart:raChart,
+    chart:raChartP,
     setSegActive,
     renderWindowControls,
     openWindowSummary,
     integrate,
     getSpeed:()=>SPEED,
+    reducedMotion:REDUCED_MOTION,
   });
 
   // mode switch

@@ -93,6 +93,7 @@
     return st.fanMode!=="off"&&naturalFlow(st)>fanFlow(st);
   }
   const FLOW_MAX=2.3; // gauge calibration: best case ≈2.28 = out mode, fully wind-aligned, at the 30 mph slider max
+  const HIST_MAX=240; // temperature-history samples kept per sim (one per 0.1 sim-time units)
   function flowModel(st){
     if(st.fanMode==="off") return naturalFlow(st);
     // The fan can't stop the wind cross-venting the same openings: never below the fan-off rate.
@@ -165,41 +166,47 @@
     st.openWindows=normalizeOpenWindows(over&&over.openWindows,st.fanLoc,over&&over.otherOpen);
     delete st.otherOpen;
     ensureFanWindow(st);
-    return {st, particles:[], hist:[], fanAngle:Math.random()*6, t:0, doneAt:null, lastHist:0};
+    st.startIndoor=st.indoor; // anchors the temperature color scale for this scenario
+    return {st, particles:[], hist:[], fanAngle:Math.random()*6, t:0, doneAt:null, lastHist:0, histT:0, spawnDebt:0};
   }
-  function resetSim(sim,indoor){ sim.st.indoor=indoor==null?74:indoor; sim.particles.length=0; sim.hist.length=0; sim.t=0; sim.doneAt=null; sim.lastHist=0; }
+  function resetSim(sim,indoor){ sim.st.indoor=indoor==null?74:indoor; sim.st.startIndoor=sim.st.indoor; sim.particles.length=0; sim.hist.length=0; sim.t=0; sim.doneAt=null; sim.lastHist=0; sim.histT=0; sim.spawnDebt=0; }
 
-  function spawn(sim,g,rate){
+  function spawn(sim,g,rate,fscale){
     const path=airPath(sim.st);
-    const n=Math.min(3,Math.floor(rate*2));
+    // Fractional spawn debt accumulates across frames so low flows still shed the odd particle.
+    sim.spawnDebt=(sim.spawnDebt||0)+rate*2*(fscale==null?1:fscale);
+    const n=Math.min(3,Math.floor(sim.spawnDebt));
+    sim.spawnDebt=Math.min(3,sim.spawnDebt-n);
+    const coolIn=sim.st.outdoor<=sim.st.indoor; // when outdoors is hotter, the incoming air is the warm one
     for(let i=0;i<n;i++){
       if(path.bidir){
         const w=winOf(g,path.bidir), into=Math.random()<0.5;
         const vx=-w.nx*(into?1:-1),vy=-w.ny*(into?1:-1),tx=-vy,ty=vx,off=(Math.random()-.5)*w.len;
-        sim.particles.push(mk(w.x+tx*off,w.y+ty*off,vx,vy,into));
+        sim.particles.push(mk(w.x+tx*off,w.y+ty*off,vx,vy,into,into?coolIn:!coolIn));
         continue;
       }
       if(path.intake){
         const w=winOf(g,path.intake),vx=-w.nx,vy=-w.ny,tx=-vy,ty=vx,off=(Math.random()-.5)*w.len;
         const x=w.x+tx*off,y=w.y+ty*off;
-        sim.particles.push(mk(x,y,vx,vy,true,path.exhaust));
+        sim.particles.push(mk(x,y,vx,vy,true,coolIn,path.exhaust));
       }
     }
   }
-  function mk(x,y,vx,vy,cool,target){const sp=0.8+Math.random()*0.7;return {x,y,vx:vx*sp,vy:vy*sp,cool,life:0,max:150+Math.random()*60,target};}
-  function stepParticles(sim,g){
+  function mk(x,y,vx,vy,inbound,cool,target){const sp=0.8+Math.random()*0.7;return {x,y,vx:vx*sp,vy:vy*sp,inbound,cool,life:0,max:150+Math.random()*60,target};}
+  function stepParticles(sim,g,fscale){
+    const f=fscale==null?1:fscale; // frame-rate–independent step: 1 ≈ one 60 Hz frame
     for(const p of sim.particles){
       if(p.target){
         const w=winOf(g,p.target),dx=w.x-p.x,dy=w.y-p.y,d=Math.hypot(dx,dy)||1;
-        p.vx+=(dx/d)*0.05;p.vy+=(dy/d)*0.05;
+        p.vx+=(dx/d)*0.05*f;p.vy+=(dy/d)*0.05*f;
         const s=Math.hypot(p.vx,p.vy),cap=1.6; if(s>cap){p.vx*=cap/s;p.vy*=cap/s;}
       }
-      p.x+=p.vx;p.y+=p.vy;p.life++;
+      p.x+=p.vx*f;p.y+=p.vy*f;p.life+=f;
       const targetWall=p.target&&winOf(g,p.target).wall;
-      if(p.x<g.R.x+4&&p.vx<0&&targetWall!=="W"&&p.cool)p.vx*=-0.4;
-      if(p.x>g.R.x+g.R.w-4&&p.vx>0&&targetWall!=="E"&&p.cool)p.vx*=-0.4;
-      if(p.y<g.R.y+4&&p.vy<0&&targetWall!=="N"&&p.cool)p.vy*=-0.4;
-      if(p.y>g.R.y+g.R.h-4&&p.vy>0&&targetWall!=="S"&&p.cool)p.vy*=-0.4;
+      if(p.x<g.R.x+4&&p.vx<0&&targetWall!=="W"&&p.inbound)p.vx*=-0.4;
+      if(p.x>g.R.x+g.R.w-4&&p.vx>0&&targetWall!=="E"&&p.inbound)p.vx*=-0.4;
+      if(p.y<g.R.y+4&&p.vy<0&&targetWall!=="N"&&p.inbound)p.vy*=-0.4;
+      if(p.y>g.R.y+g.R.h-4&&p.vy>0&&targetWall!=="S"&&p.inbound)p.vy*=-0.4;
     }
     for(let i=sim.particles.length-1;i>=0;i--){
       const p=sim.particles[i]; let gone=p.life>p.max;
@@ -231,6 +238,7 @@ export {
   naturalFlow,
   windDominated,
   FLOW_MAX,
+  HIST_MAX,
   flowModel,
   airPath,
   bestConfigFor,

@@ -1,7 +1,8 @@
+import { HIST_MAX } from "./model.js";
 import { tempColor } from "./draw.js";
 
-function drawChartSingle(cv,sim){
-  const cx=cv.getContext("2d"),CW=cv.width,CH=cv.height,st=sim.st;
+function drawChartSingle(ch,sim){
+  const cx=ch.ctx,CW=ch.W,CH=ch.H,st=sim.st;
   cx.clearRect(0,0,CW,CH);
   const top=14,bot=CH-22,left=34,right=CW-10;
   const tMin=Math.min(st.outdoor-2,...sim.hist,60), tMax=Math.max(78,st.outdoor,...sim.hist);
@@ -15,13 +16,13 @@ function drawChartSingle(cv,sim){
 
 function plotLine(cx,hist,left,right,yOf,c0,c1){
   if(hist.length<2)return;
-  const MAXH=240;cx.lineWidth=2.4;const g=cx.createLinearGradient(left,0,right,0);g.addColorStop(0,c0);g.addColorStop(1,c1);cx.strokeStyle=g;cx.beginPath();
-  hist.forEach((t,i)=>{const x=left+(right-left)*(i/(MAXH-1)),y=yOf(t);i?cx.lineTo(x,y):cx.moveTo(x,y);});cx.stroke();
-  const hx=left+(right-left)*((hist.length-1)/(MAXH-1)),hy=yOf(hist[hist.length-1]);cx.fillStyle=c1;cx.beginPath();cx.arc(hx,hy,3.5,0,7);cx.fill();
+  cx.lineWidth=2.4;const g=cx.createLinearGradient(left,0,right,0);g.addColorStop(0,c0);g.addColorStop(1,c1);cx.strokeStyle=g;cx.beginPath();
+  hist.forEach((t,i)=>{const x=left+(right-left)*(i/(HIST_MAX-1)),y=yOf(t);i?cx.lineTo(x,y):cx.moveTo(x,y);});cx.stroke();
+  const hx=left+(right-left)*((hist.length-1)/(HIST_MAX-1)),hy=yOf(hist[hist.length-1]);cx.fillStyle=c1;cx.beginPath();cx.arc(hx,hy,3.5,0,7);cx.fill();
 }
 
-function drawChartRace(cv,a,b){
-  const cx=cv.getContext("2d"),CW=cv.width,CH=cv.height,out=a.st.outdoor;
+function drawChartRace(ch,a,b){
+  const cx=ch.ctx,CW=ch.W,CH=ch.H,out=a.st.outdoor;
   cx.clearRect(0,0,CW,CH);
   const top=14,bot=CH-22,left=34,right=CW-10;
   const all=a.hist.concat(b.hist);
@@ -39,9 +40,9 @@ function drawChartRace(cv,a,b){
 }
 
 function plotLineSolid(cx,hist,left,right,yOf,c){
-  if(hist.length<2)return;const MAXH=240;cx.lineWidth=2.4;cx.strokeStyle=c;cx.beginPath();
-  hist.forEach((t,i)=>{const x=left+(right-left)*(i/(MAXH-1)),y=yOf(t);i?cx.lineTo(x,y):cx.moveTo(x,y);});cx.stroke();
-  const hx=left+(right-left)*((hist.length-1)/(MAXH-1)),hy=yOf(hist[hist.length-1]);cx.fillStyle=c;cx.beginPath();cx.arc(hx,hy,3.5,0,7);cx.fill();
+  if(hist.length<2)return;cx.lineWidth=2.4;cx.strokeStyle=c;cx.beginPath();
+  hist.forEach((t,i)=>{const x=left+(right-left)*(i/(HIST_MAX-1)),y=yOf(t);i?cx.lineTo(x,y):cx.moveTo(x,y);});cx.stroke();
+  const hx=left+(right-left)*((hist.length-1)/(HIST_MAX-1)),hy=yOf(hist[hist.length-1]);cx.fillStyle=c;cx.beginPath();cx.arc(hx,hy,3.5,0,7);cx.fill();
 }
 
 export { drawChartSingle, drawChartRace };

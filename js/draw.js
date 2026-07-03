@@ -2,9 +2,21 @@ import { WIND, WINDOW_IDS, isWindowOpen, winOf } from "./model.js";
 
 const lerp=(a,b,t)=>a+(b-a)*t;
 
+const DPR=typeof window!=="undefined"&&window.devicePixelRatio?Math.min(3,window.devicePixelRatio):1;
+function prepCanvas(cv){
+  // Scale the backing store for hi-DPI displays; callers keep drawing in the original logical size.
+  const W=cv.width,H=cv.height;
+  if(DPR!==1){cv.width=Math.round(W*DPR);cv.height=Math.round(H*DPR);}
+  const ctx=cv.getContext("2d");
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  return {cv,ctx,W,H};
+}
+
 function tempColor(st,t){
-  const span=Math.max(1,(74-st.outdoor));
-  const k=Math.max(0,Math.min(1,(t-st.outdoor)/span));
+  // Cyan↔red mapped over the scenario's own range, so warming rooms redden instead of staying cyan.
+  const start=Number.isFinite(st.startIndoor)?st.startIndoor:74;
+  const lo=Math.min(start,st.outdoor), hi=Math.max(start,st.outdoor);
+  const k=Math.max(0,Math.min(1,(t-lo)/Math.max(1,hi-lo)));
   const c=[34,211,238], w=[251,113,133];
   return `rgb(${lerp(c[0],w[0],k)|0},${lerp(c[1],w[1],k)|0},${lerp(c[2],w[2],k)|0})`;
 }
@@ -50,7 +62,6 @@ function drawWindow(ctx,g,w,isOpen,hasFan){
   ctx.lineWidth=5;ctx.strokeStyle=hasFan?"#6ee7f5":(isOpen?"#4b5870":"#243044");
   ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
   if(!isOpen&&!hasFan){ctx.strokeStyle="#33405a";ctx.lineWidth=2;for(let t=0.18;t<1;t+=0.22){const mx=lerp(x1,x2,t),my=lerp(y1,y2,t);ctx.beginPath();if(w.wall==="N"||w.wall==="S"){ctx.moveTo(mx-5,my-6);ctx.lineTo(mx+5,my+6);}else{ctx.moveTo(mx-6,my-5);ctx.lineTo(mx+6,my+5);}ctx.stroke();}}
-  if(hasFan)drawFan(ctx,w,0,Math.min(20,w.len*0.24));
 }
 
 function drawRoom(ctx,g,sim,opts){
@@ -95,4 +106,4 @@ function drawRoom(ctx,g,sim,opts){
   ctx.fillStyle="#6b7790";ctx.font="11px 'JetBrains Mono'";ctx.fillText("INDOOR",g.R.x+g.R.w/2,g.R.y+g.R.h/2+g.WIN*0.55);
 }
 
-export { tempColor, drawRoom };
+export { prepCanvas, tempColor, drawRoom };

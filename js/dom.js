@@ -25,6 +25,8 @@ function getDomRefs(){
     sbFlowBar:byId("sbFlowBar"),
     sbFlowPct:byId("sbFlowPct"),
     sbStatus:byId("sbStatus"),
+    legendIn:byId("legendIn"),
+    legendOut:byId("legendOut"),
     timerA:byId("timerA"),
     timerB:byId("timerB"),
     flowA:byId("flowA"),

@@ -4,6 +4,7 @@ import {
   applyConfig,
   resetSim,
   FLOW_MAX,
+  HIST_MAX,
   flowModel,
   spawn,
   stepParticles,
@@ -22,7 +23,7 @@ const PRESETS={
   we:{A:{fanLoc:"west",fanMode:"out",openWindows:windowState(true)},B:{fanLoc:"east",fanMode:"out",openWindows:windowState(true)}},
 };
 
-function createRaceController({A,B,refs,geos,contexts,chart,setSegActive,renderWindowControls,openWindowSummary,integrate,getSpeed}){
+function createRaceController({A,B,refs,geos,contexts,chart,setSegActive,renderWindowControls,openWindowSummary,integrate,getSpeed,reducedMotion}){
   let raceStartIndoor=74, raceRunning=false, winner=null, raceTie=false;
   const simRows=[
     [A,geos.A,contexts.A,refs.timerA,refs.flowA,refs.runnerA,refs.labelA],
@@ -37,7 +38,7 @@ function createRaceController({A,B,refs,geos,contexts,chart,setSegActive,renderW
     refs.runnerA.classList.remove("win");refs.runnerB.classList.remove("win");
   }
 
-  function tick(now,dt){
+  function tick(now,dt,fscale){
     const speed=getSpeed();
     simRows.forEach(([sim,g,ctx,timerEl,flowEl,runnerEl,labelEl])=>{
       let rate=flowModel(sim.st);
@@ -45,10 +46,15 @@ function createRaceController({A,B,refs,geos,contexts,chart,setSegActive,renderW
         rate=integrate(sim,dt); sim.t+=dt;
         if(Math.abs(sim.st.indoor-sim.st.outdoor)<EPS){ sim.doneAt=sim.t; }
       }
-      spawn(sim,g,raceRunning?rate:rate*0.4); stepParticles(sim,g);
-      sim.fanAngle += (sim.st.fanMode==="off"?0:(raceRunning?0.06+rate*0.22:0.05))*(sim.st.fanMode==="in"?-1:1)*speed;
+      if(!reducedMotion){
+        spawn(sim,g,raceRunning?rate:rate*0.4,fscale); stepParticles(sim,g,fscale);
+        sim.fanAngle += (sim.st.fanMode==="off"?0:(raceRunning?0.06+rate*0.22:0.05))*(sim.st.fanMode==="in"?-1:1)*speed*fscale;
+      }
       drawRoom(ctx,g,sim,{small:true});
-      if(raceRunning && now-sim.lastHist>100){sim.hist.push(sim.st.indoor);if(sim.hist.length>240)sim.hist.shift();sim.lastHist=now;}
+      if(raceRunning){
+        sim.histT+=dt;
+        if(sim.histT-sim.lastHist>=0.1){sim.hist.push(sim.st.indoor);if(sim.hist.length>HIST_MAX)sim.hist.shift();sim.lastHist=sim.histT;}
+      }
       setLeadingText(timerEl,sim.doneAt?sim.doneAt.toFixed(1):sim.t.toFixed(1));
       flowEl.textContent=Math.round(Math.min(1,rate/FLOW_MAX)*100)+"%";
       labelEl.textContent=`${sim.st.fanLoc} · ${sim.st.fanMode} · open ${openWindowSummary(sim.st)}`;
