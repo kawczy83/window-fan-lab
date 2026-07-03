@@ -13,6 +13,11 @@ function setLeadingText(el,text){
   else el.prepend(document.createTextNode(text));
 }
 
+function setPressed(btn,on){
+  btn.classList.toggle("active",on);
+  btn.setAttribute("aria-pressed",on?"true":"false");
+}
+
 function getDomRefs(){
   return {
     sbRoom:byId("sbRoom"),
@@ -93,4 +98,4 @@ function getDomRefs(){
   };
 }
 
-export { byId, title, setLeadingText, getDomRefs };
+export { byId, title, setLeadingText, setPressed, getDomRefs };

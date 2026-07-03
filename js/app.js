@@ -22,7 +22,7 @@ import {
   spawn,
   stepParticles,
 } from "./model.js";
-import { getDomRefs, setLeadingText } from "./dom.js";
+import { getDomRefs, setLeadingText, setPressed } from "./dom.js";
 import { prepCanvas, tempColor, drawRoom } from "./draw.js";
 import { drawChartSingle } from "./charts.js";
 import { createRaceController } from "./race.js";
@@ -135,14 +135,14 @@ import { createTrialsController } from "./trials.js";
     segmentBoxes.set(`${box.dataset.sim}:${box.dataset.key}`,box);
     box.addEventListener("click",e=>{
       const b=e.target.closest("button"); if(!b)return;
-      [...box.children].forEach(c=>c.classList.remove("active")); b.classList.add("active");
+      [...box.children].forEach(c=>setPressed(c,c===b));
       applySeg(box.dataset.sim, box.dataset.key, b.dataset.v);
       // warm styling for "off"
       if(box.dataset.key==="fanMode") box.classList.toggle("warm", b.dataset.v==="off");
       if(box.dataset.sim==="sb")renderBestButton();
     });
   });
-  function setSegActive(target,key,val){const box=segmentBoxes.get(`${target}:${key}`);if(!box)return;[...box.children].forEach(c=>c.classList.toggle("active",c.dataset.v===val));box.classList.toggle("warm", key==="fanMode"&&val==="off");}
+  function setSegActive(target,key,val){const box=segmentBoxes.get(`${target}:${key}`);if(!box)return;[...box.children].forEach(c=>setPressed(c,c.dataset.v===val));box.classList.toggle("warm", key==="fanMode"&&val==="off");}
   function openWindowSummary(st){
     const names=availableWindows(st);
     return names.length?names.map(name=>WINDOWS[name].wall).join("/"):"none";
@@ -152,7 +152,7 @@ import { createTrialsController } from "./trials.js";
     if(!sim||!box)return;
     for(const b of box.children){
       const name=b.dataset.window, forced=sim.st.fanMode!=="off"&&sim.st.fanLoc===name, open=isWindowOpen(sim.st,name);
-      b.classList.toggle("active",open);b.disabled=forced;
+      setPressed(b,open);b.disabled=forced;
       b.textContent=`${target==="sb"?windowLabel(name):WINDOWS[name].wall} · ${forced?"fan":(open?"open":"closed")}`;
     }
   }
@@ -206,7 +206,7 @@ import { createTrialsController } from "./trials.js";
   // mode switch
   modeSwitch.addEventListener("click",e=>{
     const b=e.target.closest("button");if(!b)return;
-    [...e.currentTarget.children].forEach(c=>c.classList.remove("active"));b.classList.add("active");
+    [...e.currentTarget.children].forEach(c=>setPressed(c,c===b));
     mode=b.dataset.m;
     sandboxView.style.display = mode==="sandbox"?"grid":"none";
     raceView.style.display = mode==="race"?"block":"none";
@@ -214,7 +214,7 @@ import { createTrialsController } from "./trials.js";
   // speed
   speedSeg.addEventListener("click",e=>{
     const b=e.target.closest("button");if(!b)return;
-    [...e.currentTarget.children].forEach(c=>c.classList.remove("active"));b.classList.add("active");SPEED=+b.dataset.s;
+    [...e.currentTarget.children].forEach(c=>setPressed(c,c===b));SPEED=+b.dataset.s;
   });
 
   /* =================== CURRENT WIND =================== */
@@ -228,7 +228,7 @@ import { createTrialsController } from "./trials.js";
   let currentWindToward="S";
   currentWindDir.addEventListener("click",e=>{
     const b=e.target.closest("button");if(!b)return;
-    [...e.currentTarget.children].forEach(c=>c.classList.remove("active"));b.classList.add("active");currentWindToward=b.dataset.v;
+    [...e.currentTarget.children].forEach(c=>setPressed(c,c===b));currentWindToward=b.dataset.v;
   });
   currentWs.addEventListener("input",e=>{currentWsVal.textContent=e.target.value+" mph";});
   applyCurrentWind.addEventListener("click",e=>{
@@ -239,6 +239,7 @@ import { createTrialsController } from "./trials.js";
   });
 
   // boot
+  document.querySelectorAll(".seg button, .switch button").forEach(b=>b.setAttribute("aria-pressed",b.classList.contains("active")?"true":"false"));
   createWindRose({refs,applyWindToActive}).init();
   createTrialsController({refs,openWindowSummary}).init();
   renderAllWindowControls();

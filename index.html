@@ -14,19 +14,19 @@
 <body>
 <div class="wrap">
   <header class="top">
-    <div class="tag">Thermal Airflow Bench · v2.2</div>
+    <div class="tag">Thermal Airflow Bench · v2.3</div>
     <h1>Window Fan Lab <em>// race configs · read the wind</em></h1>
     <p class="sub">Top-down room physics for a four-window bedroom (windows facing North, East, South &amp; West). Run a single Sandbox, race two configurations head-to-head, or pull a historical wind rose for your coordinates and feed the prevailing direction straight into the model.</p>
   </header>
 
   <div class="toolbar">
-    <div class="switch" id="modeSwitch">
+    <div class="switch" id="modeSwitch" role="group" aria-label="View mode">
       <button data-m="sandbox" class="active">Sandbox</button>
       <button data-m="race">Race two configs</button>
     </div>
     <div class="speed">
       Sim speed
-      <div class="seg" id="speedSeg">
+      <div class="seg" id="speedSeg" role="group" aria-label="Simulation speed">
         <button data-s="1" class="active">1×</button>
         <button data-s="2">2×</button>
         <button data-s="4">4×</button>
@@ -38,7 +38,7 @@
   <div id="sandboxView" class="grid">
     <div class="panel">
       <h2>Room — top-down view</h2>
-      <div class="stage"><canvas id="sbRoom" width="640" height="520"></canvas></div>
+      <div class="stage"><canvas id="sbRoom" width="640" height="520" role="img" aria-label="Animated top-down room view showing airflow particles, windows, and the fan"></canvas></div>
       <div class="legend">
         <span id="legendIn"><i class="dot" style="background:var(--cool)"></i>cool outdoor air in</span>
         <span id="legendOut"><i class="dot" style="background:var(--warm)"></i>warm indoor air out</span>
@@ -53,32 +53,32 @@
       </div>
       <div class="ctl"><label>Air exchange rate <span class="rangeval" id="sbFlowPct">—</span></label><div class="bar"><i id="sbFlowBar"></i></div></div>
       <div class="status" id="sbStatus" aria-live="polite">Set a configuration and watch the room cool.</div>
-      <canvas id="sbChart" width="520" height="240" style="width:100%;height:120px;border-radius:10px;background:#0a0d12;border:1px solid var(--line);margin-top:10px;"></canvas>
+      <canvas id="sbChart" width="520" height="240" role="img" aria-label="Indoor temperature history chart" style="width:100%;height:120px;border-radius:10px;background:#0a0d12;border:1px solid var(--line);margin-top:10px;"></canvas>
 
       <h2 style="margin-top:18px">Controls</h2>
       <div class="ctl"><label>Fan location</label>
-        <div class="seg" data-sim="sb" data-key="fanLoc">
+        <div class="seg" data-sim="sb" data-key="fanLoc" role="group" aria-label="Fan location">
           <button data-v="north">North window</button>
           <button data-v="east">East window</button>
           <button data-v="south" class="active">South window</button>
           <button data-v="west">West window</button>
         </div></div>
       <div class="ctl"><label>Fan mode</label>
-        <div class="seg" data-sim="sb" data-key="fanMode">
+        <div class="seg" data-sim="sb" data-key="fanMode" role="group" aria-label="Fan mode">
           <button data-v="out" class="active">Out</button>
           <button data-v="in">In</button>
           <button data-v="exchange">Exchange</button>
           <button data-v="off">Off</button>
         </div></div>
       <div class="ctl"><label>Window state · active fan window stays open</label>
-        <div class="seg window-seg" data-sim="sb" data-windows>
+        <div class="seg window-seg" data-sim="sb" data-windows role="group" aria-label="Window state">
           <button data-window="north" class="active">North · open</button>
           <button data-window="east" class="active">East · open</button>
           <button data-window="south" class="active">South · open</button>
           <button data-window="west" class="active">West · open</button>
         </div></div>
       <div class="ctl"><label>Wind blowing toward</label>
-        <div class="seg" data-sim="sb" data-key="windDir">
+        <div class="seg" data-sim="sb" data-key="windDir" role="group" aria-label="Wind direction">
           <button data-v="N">North ↑</button>
           <button data-v="NE">NE ↗</button>
           <button data-v="E">East →</button>
@@ -88,11 +88,11 @@
           <button data-v="W">West ←</button>
           <button data-v="NW">NW ↖</button>
         </div></div>
-      <div class="ctl"><label>Wind speed <span class="rangeval" id="sbWsVal">5</span></label>
+      <div class="ctl"><label for="sbWs">Wind speed <span class="rangeval" id="sbWsVal">5</span></label>
         <input type="range" id="sbWs" min="0" max="30" step="1" value="5"></div>
-      <div class="ctl"><label>Starting indoor temp <span class="rangeval" id="sbItVal">74°F</span></label>
+      <div class="ctl"><label for="sbIt">Starting indoor temp <span class="rangeval" id="sbItVal">74°F</span></label>
         <input type="range" id="sbIt" min="40" max="95" step="1" value="74"></div>
-      <div class="ctl"><label>Outdoor temp <span class="rangeval" id="sbOtVal">64°F</span></label>
+      <div class="ctl"><label for="sbOt">Outdoor temp <span class="rangeval" id="sbOtVal">64°F</span></label>
         <input type="range" id="sbOt" min="40" max="95" step="1" value="64"></div>
       <div class="actions">
         <button class="btn-reset" id="sbReset">Reset room → 74°F</button>
@@ -109,18 +109,18 @@
       <div class="race-rooms">
         <div class="runner" id="runnerA">
           <div class="runner-head"><span class="chip chipA">CONFIG A</span><div class="timer" id="timerA">—<small> rel. units</small></div></div>
-          <canvas class="room" id="raRoom" width="380" height="360"></canvas>
+          <canvas class="room" id="raRoom" width="380" height="360" role="img" aria-label="Animated room view for config A"></canvas>
           <div class="mini-flow"><span id="labelA">south · out · open N/E/S/W</span><span>flow <b id="flowA">—</b></span></div>
         </div>
         <div class="runner" id="runnerB">
           <div class="runner-head"><span class="chip chipB">CONFIG B</span><div class="timer" id="timerB">—<small> rel. units</small></div></div>
-          <canvas class="room" id="rbRoom" width="380" height="360"></canvas>
+          <canvas class="room" id="rbRoom" width="380" height="360" role="img" aria-label="Animated room view for config B"></canvas>
           <div class="mini-flow"><span id="labelB">south · in · open N/E/S/W</span><span>flow <b id="flowB">—</b></span></div>
         </div>
       </div>
 
       <div class="winbar" id="winbar" aria-live="polite">First to reach outdoor temp wins in relative simulation time. Press Start.</div>
-      <canvas id="raChart" width="700" height="200" style="width:100%;height:130px;border-radius:10px;background:#0a0d12;border:1px solid var(--line);"></canvas>
+      <canvas id="raChart" width="700" height="200" role="img" aria-label="Race temperature history chart for configs A and B" style="width:100%;height:130px;border-radius:10px;background:#0a0d12;border:1px solid var(--line);"></canvas>
 
       <div class="presets">
         <button data-preset="outin">Out vs In</button>
@@ -134,29 +134,29 @@
       <div class="race-config">
         <div class="cfg outlineA">
           <div class="ctl"><label>A — Fan location</label>
-            <div class="seg" data-sim="A" data-key="fanLoc">
+            <div class="seg" data-sim="A" data-key="fanLoc" role="group" aria-label="Config A fan location">
               <button data-v="north">North</button><button data-v="east">East</button><button data-v="south" class="active">South</button><button data-v="west">West</button>
             </div></div>
           <div class="ctl"><label>A — Fan mode</label>
-            <div class="seg" data-sim="A" data-key="fanMode">
+            <div class="seg" data-sim="A" data-key="fanMode" role="group" aria-label="Config A fan mode">
               <button data-v="out" class="active">Out</button><button data-v="in">In</button><button data-v="exchange">Exch</button><button data-v="off">Off</button>
             </div></div>
           <div class="ctl" style="margin-bottom:0"><label>A — Window state</label>
-            <div class="seg window-seg" data-sim="A" data-windows>
+            <div class="seg window-seg" data-sim="A" data-windows role="group" aria-label="Config A window state">
               <button data-window="north" class="active">N · open</button><button data-window="east" class="active">E · open</button><button data-window="south" class="active">S · open</button><button data-window="west" class="active">W · open</button>
             </div></div>
         </div>
         <div class="cfg outlineB">
           <div class="ctl"><label>B — Fan location</label>
-            <div class="seg" data-sim="B" data-key="fanLoc">
+            <div class="seg" data-sim="B" data-key="fanLoc" role="group" aria-label="Config B fan location">
               <button data-v="north">North</button><button data-v="east">East</button><button data-v="south" class="active">South</button><button data-v="west">West</button>
             </div></div>
           <div class="ctl"><label>B — Fan mode</label>
-            <div class="seg" data-sim="B" data-key="fanMode">
+            <div class="seg" data-sim="B" data-key="fanMode" role="group" aria-label="Config B fan mode">
               <button data-v="out">Out</button><button data-v="in" class="active">In</button><button data-v="exchange">Exch</button><button data-v="off">Off</button>
             </div></div>
           <div class="ctl" style="margin-bottom:0"><label>B — Window state</label>
-            <div class="seg window-seg" data-sim="B" data-windows>
+            <div class="seg window-seg" data-sim="B" data-windows role="group" aria-label="Config B window state">
               <button data-window="north" class="active">N · open</button><button data-window="east" class="active">E · open</button><button data-window="south" class="active">S · open</button><button data-window="west" class="active">W · open</button>
             </div></div>
         </div>
@@ -166,16 +166,16 @@
       <div class="race-config">
         <div>
           <div class="ctl"><label>Wind blowing toward</label>
-            <div class="seg" data-sim="ENV" data-key="windDir">
+            <div class="seg" data-sim="ENV" data-key="windDir" role="group" aria-label="Wind direction">
               <button data-v="N">North ↑</button><button data-v="NE">NE ↗</button><button data-v="E">East →</button><button data-v="SE">SE ↘</button><button data-v="S" class="active">South ↓</button><button data-v="SW">SW ↙</button><button data-v="W">West ←</button><button data-v="NW">NW ↖</button>
             </div></div>
-          <div class="ctl" style="margin-bottom:0"><label>Wind speed <span class="rangeval" id="raWsVal">5</span></label>
+          <div class="ctl" style="margin-bottom:0"><label for="raWs">Wind speed <span class="rangeval" id="raWsVal">5</span></label>
             <input type="range" id="raWs" min="0" max="30" step="1" value="5"></div>
         </div>
         <div>
-          <div class="ctl"><label>Starting indoor temp <span class="rangeval" id="raItVal">74°F</span></label>
+          <div class="ctl"><label for="raIt">Starting indoor temp <span class="rangeval" id="raItVal">74°F</span></label>
             <input type="range" id="raIt" min="40" max="95" step="1" value="74"></div>
-          <div class="ctl"><label>Outdoor temp <span class="rangeval" id="raOtVal">64°F</span></label>
+          <div class="ctl"><label for="raOt">Outdoor temp <span class="rangeval" id="raOtVal">64°F</span></label>
             <input type="range" id="raOt" min="40" max="95" step="1" value="64"></div>
           <div class="actions">
             <button class="btn-reset" id="raReset">Reset</button>
@@ -191,7 +191,7 @@
   <div id="roseBlock" class="panel">
     <h2>Historical wind rose — prevailing pattern for your area</h2>
     <div class="rose-grid">
-      <canvas id="rose" width="600" height="600"></canvas>
+      <canvas id="rose" width="600" height="600" role="img" aria-label="Wind rose showing how often wind blows from each direction"></canvas>
       <div class="rose-meta">
         <div class="src">Source <span class="pill loading" id="rosePill">loading…</span></div>
         <h3 id="roseLoc">Philadelphia, PA · fallback sample data</h3>
@@ -216,7 +216,7 @@
     <p class="section-copy">The historical wind rose above is a pattern summary, not current weather. Enter an observed current wind separately when you want the model to reflect conditions now.</p>
     <div class="compact-grid">
       <div class="ctl" style="margin-bottom:0"><label>Current wind blowing toward</label>
-        <div class="seg" id="currentWindDir">
+        <div class="seg" id="currentWindDir" role="group" aria-label="Current wind direction">
           <button data-v="N">North ↑</button>
           <button data-v="NE">NE ↗</button>
           <button data-v="E">East →</button>
@@ -227,7 +227,7 @@
           <button data-v="NW">NW ↖</button>
         </div>
       </div>
-      <div class="ctl" style="margin-bottom:0"><label>Current wind speed <span class="rangeval" id="currentWsVal">5 mph</span></label>
+      <div class="ctl" style="margin-bottom:0"><label for="currentWs">Current wind speed <span class="rangeval" id="currentWsVal">5 mph</span></label>
         <input type="range" id="currentWs" min="0" max="30" step="1" value="5">
       </div>
       <div class="actions" style="margin:0">
