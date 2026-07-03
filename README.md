@@ -55,7 +55,8 @@ node --test
 ## Data And Privacy
 
 - Historical wind data is requested from Open-Meteo for the default Philadelphia
-  sample on startup and whenever you submit coordinates.
+  sample on startup and whenever you submit coordinates. Responses are cached in
+  `localStorage` for 24 hours so repeat visits don't refetch.
 - Font files are requested from Google Fonts when the page loads.
 - Browser geolocation is used only when you choose the location button.
 - Real-world trial entries are stored in your browser with `localStorage`.

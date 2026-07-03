@@ -119,6 +119,7 @@
   .rose-meta p{font-size:12.5px;color:var(--txt);line-height:1.6;margin:6px 0;}
   .rose-meta p .from{color:var(--warm-deep);font-weight:700;}
   .rose-meta p .to{color:var(--cool);font-weight:700;}
+  .fetch-err{color:var(--warm);font-weight:700;}
   .loc-row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin:12px 0;}
   .loc-row .f{flex:1;min-width:90px;}
   .loc-row label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:5px;}

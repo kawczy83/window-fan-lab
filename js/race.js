@@ -94,7 +94,8 @@ function createRaceController({A,B,refs,geos,contexts,chart,setSegActive,renderW
 
   refs.raWs.addEventListener("input",e=>{A.st.windSpeed=B.st.windSpeed=+e.target.value;refs.raWsVal.textContent=e.target.value;});
   refs.raIt.addEventListener("input",e=>{raceStartIndoor=+e.target.value;refs.raItVal.textContent=e.target.value+"°F";resetRace();});
-  refs.raOt.addEventListener("input",e=>{A.st.outdoor=B.st.outdoor=+e.target.value;refs.raOtVal.textContent=e.target.value+"°F";});
+  // Changing the outdoor target mid-race would move the finish line, so it resets like the indoor slider.
+  refs.raOt.addEventListener("input",e=>{A.st.outdoor=B.st.outdoor=+e.target.value;refs.raOtVal.textContent=e.target.value+"°F";resetRace();});
   refs.raReset.addEventListener("click",resetRace);
   refs.raStart.addEventListener("click",()=>{resetRace();raceRunning=true;refs.winbar.textContent="Racing…";});
 

@@ -12,6 +12,7 @@ import {
   FLOW_MAX,
   HIST_MAX,
   flowModel,
+  naturalFlow,
   airPath,
   bestConfigFor,
   otherWindows,
@@ -34,7 +35,15 @@ import { createTrialsController } from "./trials.js";
     const stalled=(st.fanMode==="in"||st.fanMode==="out")&&!others.length, off=st.fanMode==="off";
     const dirName=(WIND[st.windDir]||WIND.S).name;
     let msg;
-    if(off) msg=openings.length>1?`Fan is <b>off</b> — the room drifts through gentle natural exchange between open windows.`:`Fan is <b>off</b> with fewer than two open windows — barely any exchange.`;
+    if(off){
+      if(openings.length<2) msg=`Fan is <b>off</b> with fewer than two open windows — barely any exchange.`;
+      else{
+        const nf=naturalFlow(st);
+        if(nf>=0.9) msg=`Fan is <b>off</b>, but wind toward ${dirName} drives a <b>strong cross-breeze</b> — in via <b>${windowLabel(path.intake)}</b>, out via <b>${windowLabel(path.exhaust)}</b>.`;
+        else if(nf>=0.3) msg=`Fan is <b>off</b> — a steady wind-driven cross-breeze runs in via <b>${windowLabel(path.intake)}</b> and out via <b>${windowLabel(path.exhaust)}</b>.`;
+        else msg=`Fan is <b>off</b> — the room drifts through gentle natural exchange between open windows.`;
+      }
+    }
     else if(stalled) msg=`Fan ${st.fanMode==="out"?"exhausting":"drawing"} without another open window. One-in/one-out rule kicks in — it stalls. Open a second window.`;
     else if(windDominated(st)) msg=`Wind toward ${dirName} <b>overpowers the fan</b>: air streams in via <b>${windowLabel(path.intake)}</b> and out via <b>${windowLabel(path.exhaust)}</b> at the natural cross-vent rate.`;
     else if(st.fanMode==="exchange") msg=`<b>Exchange</b> mode: one blade in, one out, through a single window. Works, but a fan + other open windows moves more air.`;

@@ -1,8 +1,35 @@
 import { WIND } from "./model.js";
+import { prepCanvas } from "./draw.js";
 
 const DIRS16=["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
 const PHILLY=[5.5,4.5,4.0,3.5,3.5,3.5,4.0,4.5,6.0,7.0,8.5,9.5,11.5,8.5,9.0,7.0];
 const PHILLY_FALLBACK_LOC="Philadelphia, PA · fallback sample data";
+const ROSE_CACHE_KEY="window-fan-lab-rose-v1";
+const ROSE_CACHE_TTL=864e5; // 24 h — the 12-month archive barely changes day to day
+const ROSE_CACHE_MAX=8;
+const cacheKey=(lat,lon)=>`${(+lat).toFixed(3)},${(+lon).toFixed(3)}`;
+
+function loadRoseCache(lat,lon){
+  try{
+    const all=JSON.parse(localStorage.getItem(ROSE_CACHE_KEY)||"{}");
+    const hit=all[cacheKey(lat,lon)];
+    if(hit&&Array.isArray(hit.pct)&&hit.pct.length===16&&Date.now()-hit.fetchedAt<ROSE_CACHE_TTL)return hit;
+  }catch(err){}
+  return null;
+}
+
+function saveRoseCache(lat,lon,data){
+  try{
+    const all=JSON.parse(localStorage.getItem(ROSE_CACHE_KEY)||"{}");
+    all[cacheKey(lat,lon)]=Object.assign({},data,{fetchedAt:Date.now()});
+    const keys=Object.keys(all);
+    if(keys.length>ROSE_CACHE_MAX){
+      keys.sort((a,b)=>(all[a].fetchedAt||0)-(all[b].fetchedAt||0));
+      while(keys.length>ROSE_CACHE_MAX)delete all[keys.shift()];
+    }
+    localStorage.setItem(ROSE_CACHE_KEY,JSON.stringify(all));
+  }catch(err){}
+}
 
 function snapToward(fromDeg){
   return ["N","NE","E","SE","S","SW","W","NW"][Math.round(((fromDeg+180)%360)/45)%8];
@@ -14,8 +41,8 @@ function dominant(pct){
   return mi;
 }
 
-function drawRose(cv,roseData){
-  const cx=cv.getContext("2d"),W=cv.width,H=cv.height;
+function drawRose(ch,roseData){
+  const cx=ch.ctx,W=ch.W,H=ch.H;
   const cxp=W/2,cyp=H/2,maxR=Math.min(W,H)*0.40;
   cx.clearRect(0,0,W,H);
   const pct=roseData.pct, mx=Math.max(...pct), domI=dominant(pct);
@@ -47,6 +74,7 @@ function drawRose(cv,roseData){
 
 function createWindRose({refs,applyWindToActive}){
   let roseData={pct:PHILLY.slice(), source:"fallback", loc:PHILLY_FALLBACK_LOC, meanSpeed:null};
+  const roseCanvas=prepCanvas(refs.rose);
 
   function renderRoseMeta(){
     const domI=dominant(roseData.pct), fromDir=DIRS16[domI], pctv=roseData.pct[domI].toFixed(1);
@@ -59,13 +87,20 @@ function createWindRose({refs,applyWindToActive}){
     refs.roseLoc.textContent=roseData.loc;
     const ms=roseData.meanSpeed!=null?` Mean wind ≈ ${roseData.meanSpeed.toFixed(1)} mph.`:"";
     const extra=roseData.source==="fallback"?" (Philadelphia fallback sample climatology: westerly overall — SW in summer, NW in winter.)":"";
-    refs.roseSummary.innerHTML=
+    const errNote=roseData.error?`<span class="fetch-err">${roseData.error}</span> `:"";
+    refs.roseSummary.innerHTML=errNote+
       `Prevailing wind is <span class="from">FROM ${fromDir}</span> (${pctv}% of the time)${extra}, which means it blows <span class="to">TOWARD ${toName.toUpperCase()}</span> — set the model's wind to <b>"${toName} ${toWind.arrow}"</b>.${ms}`;
     refs.applyRose.dataset.toward=toCard;
-    drawRose(refs.rose,roseData);
+    drawRose(roseCanvas,roseData);
   }
 
   async function fetchRose(lat,lon,label){
+    const cached=loadRoseCache(lat,lon);
+    if(cached){
+      roseData={pct:cached.pct, source:"historical", loc:cached.loc, meanSpeed:cached.meanSpeed};
+      renderRoseMeta();
+      return;
+    }
     refs.rosePill.className="pill loading";
     refs.rosePill.textContent="loading…";
     refs.roseSummary.textContent="Fetching the last 12 months of hourly wind data…";
@@ -89,9 +124,12 @@ function createWindRose({refs,applyWindToActive}){
       }
       if(!cnt) throw new Error("empty");
       const pct=bins.map(b=>100*b/cnt);
-      roseData={pct, source:"historical", loc:label||`${(+lat).toFixed(3)}, ${(+lon).toFixed(3)}`, meanSpeed:sCnt?sSum/sCnt:null};
+      const loc=label||`${(+lat).toFixed(3)}, ${(+lon).toFixed(3)}`;
+      roseData={pct, source:"historical", loc, meanSpeed:sCnt?sSum/sCnt:null};
+      saveRoseCache(lat,lon,{pct, loc, meanSpeed:roseData.meanSpeed});
     }catch(err){
-      roseData={pct:PHILLY.slice(), source:"fallback", loc:PHILLY_FALLBACK_LOC, meanSpeed:null};
+      roseData={pct:PHILLY.slice(), source:"fallback", loc:PHILLY_FALLBACK_LOC, meanSpeed:null,
+        error:`Couldn't fetch wind history for ${label||"those coordinates"} — showing the fallback sample instead.`};
     }
     renderRoseMeta();
   }
@@ -113,7 +151,8 @@ function createWindRose({refs,applyWindToActive}){
         refs.latInput.value=la;refs.lonInput.value=lo;
         refs.geoBtn.textContent="Use my location";
         fetchRose(la,lo,`${(+la).toFixed(3)}, ${(+lo).toFixed(3)}`);},
-      ()=>{refs.geoBtn.textContent="Use my location";alert("Couldn't get location — enter coordinates manually.");}
+      ()=>{refs.geoBtn.textContent="Use my location";alert("Couldn't get location — enter coordinates manually.");},
+      {timeout:10000,maximumAge:600000} // never leave the button stuck on "locating…"
     );
   });
 
