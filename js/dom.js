@@ -73,6 +73,7 @@ function getDomRefs(){
     trialFanMode:byId("trialFanMode"),
     trialStart:byId("trialStart"),
     trialEnd:byId("trialEnd"),
+    trialOutdoor:byId("trialOutdoor"),
     trialMinutes:byId("trialMinutes"),
     trialNotes:byId("trialNotes"),
     trialMsg:byId("trialMsg"),
@@ -80,6 +81,9 @@ function getDomRefs(){
     trialRanking:byId("trialRanking"),
     trialForm:byId("trialForm"),
     clearTrials:byId("clearTrials"),
+    exportTrials:byId("exportTrials"),
+    importTrials:byId("importTrials"),
+    importTrialsFile:byId("importTrialsFile"),
     trialOpenSelects:{
       north:byId("trialNorthOpen"),
       east:byId("trialEastOpen"),

@@ -24,7 +24,10 @@ results.
 - Load a historical wind rose for a latitude and longitude using the free
   [Open-Meteo](https://open-meteo.com/) archive API.
 - Apply prevailing or manually entered wind conditions to the simulation.
-- Record real-world cooling trials and compare measured temperature-drop rates.
+- Record real-world cooling trials — optionally with the outdoor temperature, so
+  setups are ranked by a per-degree cooling rate that stays comparable across
+  different weather — and compare measured temperature-drop rates.
+- Export and import the trial log as JSON.
 
 ## Run Locally
 
