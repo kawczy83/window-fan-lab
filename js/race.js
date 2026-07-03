@@ -23,6 +23,19 @@ const PRESETS={
   we:{A:{fanLoc:"west",fanMode:"out",openWindows:windowState(true)},B:{fanLoc:"east",fanMode:"out",openWindows:windowState(true)}},
 };
 
+function raceVerdict(aDoneAt,bDoneAt,warming){
+  // Cooling: first to reach outdoor temp wins — call it as soon as one room finishes.
+  // Warming: last to reach outdoor temp wins, so both must finish before judging.
+  if(aDoneAt!=null&&bDoneAt!=null){
+    if(Math.abs(aDoneAt-bDoneAt)<1e-9)return {result:"tie",time:aDoneAt};
+    const aWins=warming?aDoneAt>bDoneAt:aDoneAt<bDoneAt;
+    return {result:aWins?"A":"B",time:aWins?aDoneAt:bDoneAt};
+  }
+  if(!warming&&aDoneAt!=null)return {result:"A",time:aDoneAt};
+  if(!warming&&bDoneAt!=null)return {result:"B",time:bDoneAt};
+  return null;
+}
+
 function createRaceController({A,B,refs,geos,contexts,chart,setSegActive,renderWindowControls,openWindowSummary,integrate,getSpeed,reducedMotion}){
   let raceStartIndoor=74, raceRunning=false, winner=null, raceTie=false;
   const simRows=[
@@ -64,24 +77,18 @@ function createRaceController({A,B,refs,geos,contexts,chart,setSegActive,renderW
 
     if(raceRunning && !winner && !raceTie){
       const warming = A.st.outdoor > raceStartIndoor;
-      if(A.doneAt && B.doneAt){
-        if(Math.abs(A.doneAt-B.doneAt)<1e-9){
-          raceTie=true;
-          refs.winbar.className="winbar winner";
-          refs.winbar.textContent=`🏁 Dead heat — both configs reach outdoor temp in ${A.doneAt.toFixed(1)} relative units`;
-        } else {
-          winner = warming ? (A.doneAt>=B.doneAt?A:B) : (A.doneAt<=B.doneAt?A:B);
-          const wname=winner===A?"A":"B", wt=winner.doneAt.toFixed(1);
-          refs.winbar.className="winbar winner";
-          refs.winbar.textContent = warming
-            ? `🏁 Config ${wname} resists warming the longest — last to reach outdoor temp at ${wt} relative units`
-            : `🏁 Config ${wname} reaches outdoor temp first — ${wt} relative units`;
-        }
-      } else if(!warming && (A.doneAt || B.doneAt)){
-        winner = A.doneAt ? A : B;
-        const wname=winner===A?"A":"B", wt=winner.doneAt.toFixed(1);
+      const v=raceVerdict(A.doneAt,B.doneAt,warming);
+      if(v&&v.result==="tie"){
+        raceTie=true;
         refs.winbar.className="winbar winner";
-        refs.winbar.textContent=`🏁 Config ${wname} reaches outdoor temp first — ${wt} relative units`;
+        refs.winbar.textContent=`🏁 Dead heat — both configs reach outdoor temp in ${v.time.toFixed(1)} relative units`;
+      } else if(v){
+        winner = v.result==="A"?A:B;
+        const wt=v.time.toFixed(1);
+        refs.winbar.className="winbar winner";
+        refs.winbar.textContent = warming
+          ? `🏁 Config ${v.result} resists warming the longest — last to reach outdoor temp at ${wt} relative units`
+          : `🏁 Config ${v.result} reaches outdoor temp first — ${wt} relative units`;
       }
     }
     if(raceRunning && A.doneAt && B.doneAt){ raceRunning=false; }
@@ -116,4 +123,4 @@ function createRaceController({A,B,refs,geos,contexts,chart,setSegActive,renderW
   return {tick,reset:resetRace,setWind};
 }
 
-export { createRaceController };
+export { createRaceController, raceVerdict };
