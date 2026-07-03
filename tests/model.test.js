@@ -261,14 +261,25 @@ test("best config tracks which windows are open instead of assuming all-open", (
   assert.equal(shifted.openWindows.south, false); // and never reopens it
 });
 
-test("a single open window gets an exchange-mode recommendation", () => {
-  const oneWindow = baseState();
+test("a single open window while cooling suggests completing the best pair", () => {
+  const oneWindow = baseState(); // wind toward south, only south open
   oneWindow.openWindows = onlyOpen("south");
 
-  assert.deepEqual(
-    { ...bestConfigFor(oneWindow), openWindows: undefined },
-    { fanLoc: "south", fanMode: "exchange", openWindows: undefined },
-  );
+  const best = bestConfigFor(oneWindow);
+  assert.deepEqual(best.openWindows, onlyOpen("north", "south")); // adds the windward window, keeps south
+  assert.equal(best.fanLoc, "south"); // exhaust out the leeward side
+  assert.equal(best.fanMode, "out");
+});
+
+test("a single open window while warming still recommends sealing up", () => {
+  const oneWindow = baseState();
+  oneWindow.openWindows = onlyOpen("south");
+  oneWindow.indoor = 64;
+  oneWindow.outdoor = 74;
+
+  const best = bestConfigFor(oneWindow);
+  assert.equal(best.fanMode, "off");
+  assert.deepEqual(best.openWindows, windowState(false));
 });
 
 test("all windows closed while cooling suggests opening the best pair", () => {

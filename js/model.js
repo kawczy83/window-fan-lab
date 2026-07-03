@@ -118,22 +118,24 @@
     return {intake:fanW,exhaust:otherW,bidir:null};
   }
   function bestConfigFor(st){
-    // Best fan placement/mode for the windows the user actually has open — never opens a closed one,
-    // except when nothing is open while cooling: then suggest opening the best window pair.
+    // Best fan placement/mode for the windows the user actually has open — never closes an open one,
+    // but while cooling with fewer than two open (no through-path possible) it also suggests
+    // completing the best window pair, always keeping an already-open window in it.
     // Seal-up (fan off, all closed) stays a candidate: it's the right call when outdoor air is hotter.
     const cooling=st.indoor>st.outdoor, open=availableWindows(st), candidates=[];
-    if(cooling&&!open.length){
+    if(cooling&&open.length<2){
       for(let i=0;i<WINDOW_IDS.length;i++)for(let j=i+1;j<WINDOW_IDS.length;j++){
-        const openWindows=onlyOpen(WINDOW_IDS[i],WINDOW_IDS[j]);
-        for(const fanLoc of [WINDOW_IDS[i],WINDOW_IDS[j]])
+        const pair=[WINDOW_IDS[i],WINDOW_IDS[j]];
+        if(open.length&&!pair.includes(open[0]))continue; // keep the user's open window in the pair
+        const openWindows=onlyOpen(...pair);
+        for(const fanLoc of pair)
           for(const fanMode of ["out","in","exchange"])candidates.push({fanLoc,fanMode,openWindows});
         candidates.push({fanLoc:st.fanLoc,fanMode:"off",openWindows}); // natural cross-vent pair
       }
-    }else{
-      for(const fanLoc of open)
-        for(const fanMode of ["out","in","exchange"])candidates.push({fanLoc,fanMode,openWindows:st.openWindows});
-      candidates.push({fanLoc:st.fanLoc,fanMode:"off",openWindows:windowState(false)});
     }
+    for(const fanLoc of open)
+      for(const fanMode of ["out","in","exchange"])candidates.push({fanLoc,fanMode,openWindows:st.openWindows});
+    candidates.push({fanLoc:st.fanLoc,fanMode:"off",openWindows:windowState(false)});
     // Tiebreak: in/out through a windward+leeward pair move equal air — prefer "out" (exhausting out
     // the downwind side is the canonical, gust-stable recommendation) so the suggestion stays stable.
     const modeRank={out:0,in:1,exchange:2,off:3};
