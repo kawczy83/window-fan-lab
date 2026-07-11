@@ -22,12 +22,12 @@ import {
   resetSim,
   spawn,
   stepParticles,
-} from "./model.js?v=2.4.1";
-import { getDomRefs, setLeadingText, setPressed } from "./dom.js?v=2.4.1";
-import { prepCanvas, tempColor, drawRoom } from "./draw.js?v=2.4.1";
-import { drawChartSingle } from "./charts.js?v=2.4.1";
-import { createRaceController } from "./race.js?v=2.4.1";
-import { createWindRose } from "./wind-rose.js?v=2.4.1";
+} from "./model.js?v=2.5.0";
+import { getDomRefs, setLeadingText, setPressed } from "./dom.js?v=2.5.0";
+import { prepCanvas, tempColor, drawRoom } from "./draw.js?v=2.5.0";
+import { drawChartSingle } from "./charts.js?v=2.5.0";
+import { createRaceController } from "./race.js?v=2.5.0";
+import { createWindRose } from "./wind-rose.js?v=2.5.0";
 
   /* =================== STATUS TEXT (sandbox) =================== */
   function statusText(st){

@@ -9,14 +9,19 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=2.4.1">
+<link rel="stylesheet" href="styles.css?v=2.5.0">
 </head>
 <body>
 <div class="wrap">
   <header class="top">
-    <div class="tag">Thermal Airflow Bench · v2.4.1</div>
+    <div class="tag">Thermal Airflow Bench · v2.5</div>
     <h1>Window Fan Lab <em>// race configs · read the wind</em></h1>
     <p class="sub">Top-down room physics for a four-window bedroom (windows facing North, East, South &amp; West). Run a single Sandbox, race two configurations head-to-head, or pull a historical wind rose for your coordinates and feed the prevailing direction straight into the model.</p>
+    <div class="header-meta" aria-label="Model highlights">
+      <span>04 cardinal windows</span>
+      <span>wind-aware airflow</span>
+      <span>live thermal model</span>
+    </div>
   </header>
 
   <div class="boot-error" id="bootError" role="alert" hidden></div>
@@ -27,7 +32,7 @@
       <button data-m="race">Race two configs</button>
     </div>
     <div class="speed">
-      Sim speed
+      <span class="speed-label">Simulation speed</span>
       <div class="seg" id="speedSeg" role="group" aria-label="Simulation speed">
         <button data-s="1" class="active">1×</button>
         <button data-s="2">2×</button>
@@ -38,16 +43,19 @@
 
   <!-- ===================== SANDBOX ===================== -->
   <div id="sandboxView" class="grid">
-    <div class="panel">
+    <div class="panel room-panel">
       <h2>Room — top-down view</h2>
-      <div class="stage"><canvas id="sbRoom" width="640" height="520" role="img" aria-label="Animated top-down room view showing airflow particles, windows, and the fan"></canvas></div>
+      <div class="stage">
+        <div class="stage-badge"><i></i>Live airflow</div>
+        <canvas id="sbRoom" width="640" height="520" role="img" aria-label="Animated top-down room view showing airflow particles, windows, and the fan"></canvas>
+      </div>
       <div class="legend">
         <span id="legendIn"><i class="dot" style="background:var(--cool)"></i>cool outdoor air in</span>
         <span id="legendOut"><i class="dot" style="background:var(--warm)"></i>warm indoor air out</span>
         <span><i class="dot" style="background:#5b6b86"></i>wind direction</span>
       </div>
     </div>
-    <div class="panel">
+    <div class="panel instrument-panel">
       <h2>Instruments</h2>
       <div class="readout">
         <div class="stat"><div class="k">Indoor</div><div class="v" id="sbIn" style="color:var(--warm)">78.0<span class="u">°F</span></div></div>
@@ -55,9 +63,9 @@
       </div>
       <div class="ctl"><label>Air exchange rate <span class="rangeval" id="sbFlowPct">—</span></label><div class="bar"><i id="sbFlowBar"></i></div></div>
       <div class="status" id="sbStatus" aria-live="polite">Set a configuration and watch the room cool.</div>
-      <canvas id="sbChart" width="520" height="240" role="img" aria-label="Indoor temperature history chart" style="width:100%;height:120px;border-radius:10px;background:#0a0d12;border:1px solid var(--line);margin-top:10px;"></canvas>
+      <canvas class="chart" id="sbChart" width="520" height="240" role="img" aria-label="Indoor temperature history chart"></canvas>
 
-      <h2 style="margin-top:18px">Controls</h2>
+      <h2 class="section-title">Controls</h2>
       <div class="ctl"><label>Fan location</label>
         <div class="seg" data-sim="sb" data-key="fanLoc" role="group" aria-label="Fan location">
           <button data-v="north">North window</button>
@@ -106,7 +114,7 @@
 
   <!-- ===================== RACE ===================== -->
   <div id="raceView">
-    <div class="panel">
+    <div class="panel race-panel">
       <h2>Head-to-head · same room, same weather, different fan setup</h2>
       <div class="race-rooms">
         <div class="runner" id="runnerA">
@@ -122,7 +130,7 @@
       </div>
 
       <div class="winbar" id="winbar" aria-live="polite">First to reach outdoor temp wins in relative simulation time. Press Start.</div>
-      <canvas id="raChart" width="700" height="200" role="img" aria-label="Race temperature history chart for configs A and B" style="width:100%;height:130px;border-radius:10px;background:#0a0d12;border:1px solid var(--line);"></canvas>
+      <canvas class="chart race-chart" id="raChart" width="700" height="200" role="img" aria-label="Race temperature history chart for configs A and B"></canvas>
 
       <div class="presets">
         <button data-preset="outin">Out vs In</button>
@@ -164,7 +172,7 @@
         </div>
       </div>
 
-      <h2 style="margin-top:18px">Shared environment</h2>
+      <h2 class="section-title">Shared environment</h2>
       <div class="race-config">
         <div>
           <div class="ctl"><label>Wind blowing toward</label>
@@ -190,7 +198,7 @@
   </div>
 
   <!-- ===================== WIND ROSE ===================== -->
-  <div id="roseBlock" class="panel">
+  <div id="roseBlock" class="panel feature-panel">
     <h2>Historical wind rose — prevailing pattern for your area</h2>
     <div class="rose-grid">
       <canvas id="rose" width="600" height="600" role="img" aria-label="Wind rose showing how often wind blows from each direction"></canvas>
@@ -213,7 +221,7 @@
   </div>
 
   <!-- ===================== CURRENT WIND ===================== -->
-  <div id="currentWindBlock" class="panel">
+  <div id="currentWindBlock" class="panel feature-panel current-panel">
     <h2>Optional current wind — manual model input</h2>
     <p class="section-copy">The historical wind rose above is a pattern summary, not current weather. Enter an observed current wind separately when you want the model to reflect conditions now.</p>
     <div class="compact-grid">
@@ -258,6 +266,6 @@
     window.addEventListener("window-fan-lab-ready",()=>{clearTimeout(timer);notice.hidden=true;},{once:true});
   })();
 </script>
-<script type="module" src="js/app.js?v=2.4.1"></script>
+<script type="module" src="js/app.js?v=2.5.0"></script>
 </body>
 </html>
