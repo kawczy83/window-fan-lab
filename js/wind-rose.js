@@ -1,5 +1,5 @@
-import { WIND } from "./model.js";
-import { prepCanvas } from "./draw.js";
+import { WIND } from "./model.js?v=2.4.1";
+import { prepCanvas } from "./draw.js?v=2.4.1";
 
 const DIRS16=["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
 const PHILLY=[5.5,4.5,4.0,3.5,3.5,3.5,4.0,4.5,6.0,7.0,8.5,9.5,11.5,8.5,9.0,7.0];

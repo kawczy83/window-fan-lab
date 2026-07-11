@@ -6,10 +6,12 @@ import {
   applyConfig,
   availableWindows,
   bestConfigFor,
+  DEFAULT_INDOOR,
+  DEFAULT_OUTDOOR,
   FAN_MODES,
   FLOW_MAX,
   flowModel,
-  isValidTrial,
+  makeSim,
   naturalFlow,
   normalizeOpenWindows,
   onlyOpen,
@@ -19,6 +21,15 @@ import {
   windDominated,
   windowState,
 } from "../js/model.js";
+
+test("new simulations use the displayed default temperatures", () => {
+  const sim = makeSim();
+
+  assert.equal(DEFAULT_INDOOR, 78);
+  assert.equal(DEFAULT_OUTDOOR, 70);
+  assert.equal(sim.st.indoor, DEFAULT_INDOOR);
+  assert.equal(sim.st.outdoor, DEFAULT_OUTDOOR);
+});
 
 const baseState = () => ({
   indoor: 74,
@@ -198,19 +209,6 @@ test("flow stays within (0, FLOW_MAX] across the whole config space", () => {
               `flow ${flow} out of range for ${JSON.stringify(st)}`,
             );
           }
-});
-
-test("malformed stored trials are rejected instead of crashing the app", () => {
-  assert.equal(isValidTrial(5), false);
-  assert.equal(isValidTrial(null), false);
-  assert.equal(isValidTrial({}), false);
-  assert.equal(isValidTrial({ fanLoc: "attic", fanMode: "out", start: 74, end: 72, minutes: 30 }), false);
-  assert.equal(isValidTrial({ fanLoc: "south", fanMode: "out", start: "74", end: 72, minutes: 30 }), false);
-  assert.equal(isValidTrial({ fanLoc: "south", fanMode: "out", start: 74, end: 72, minutes: 0 }), false); // Infinity °F/h guard
-
-  assert.equal(isValidTrial({ fanLoc: "south", fanMode: "out", start: 74, end: 72, minutes: 30 }), true);
-  // Legacy records carry otherOpen instead of openWindows — they must stay loadable.
-  assert.equal(isValidTrial({ fanLoc: "west", fanMode: "off", otherOpen: true, start: 80, end: 76, minutes: 45 }), true);
 });
 
 test("an overpowered fan's air path follows the wind, not the fan", () => {

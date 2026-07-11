@@ -3,21 +3,23 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="Compare four-window fan placements with a lightweight airflow sandbox, race mode, historical wind rose, and local cooling-trial logger.">
+<meta name="description" content="Compare four-window fan placements with a lightweight airflow sandbox, race mode, and historical wind rose.">
 <meta name="theme-color" content="#0c0f14">
 <title>WINDOW FAN LAB — Airflow, Race Mode &amp; Wind Rose</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles.css?v=2.4.1">
 </head>
 <body>
 <div class="wrap">
   <header class="top">
-    <div class="tag">Thermal Airflow Bench · v2.3</div>
+    <div class="tag">Thermal Airflow Bench · v2.4.1</div>
     <h1>Window Fan Lab <em>// race configs · read the wind</em></h1>
     <p class="sub">Top-down room physics for a four-window bedroom (windows facing North, East, South &amp; West). Run a single Sandbox, race two configurations head-to-head, or pull a historical wind rose for your coordinates and feed the prevailing direction straight into the model.</p>
   </header>
+
+  <div class="boot-error" id="bootError" role="alert" hidden></div>
 
   <div class="toolbar">
     <div class="switch" id="modeSwitch" role="group" aria-label="View mode">
@@ -48,8 +50,8 @@
     <div class="panel">
       <h2>Instruments</h2>
       <div class="readout">
-        <div class="stat"><div class="k">Indoor</div><div class="v" id="sbIn" style="color:var(--warm)">74.0<span class="u">°F</span></div></div>
-        <div class="stat"><div class="k">Outdoor</div><div class="v" id="sbOut" style="color:var(--cool)">64<span class="u">°F</span></div></div>
+        <div class="stat"><div class="k">Indoor</div><div class="v" id="sbIn" style="color:var(--warm)">78.0<span class="u">°F</span></div></div>
+        <div class="stat"><div class="k">Outdoor</div><div class="v" id="sbOut" style="color:var(--cool)">70<span class="u">°F</span></div></div>
       </div>
       <div class="ctl"><label>Air exchange rate <span class="rangeval" id="sbFlowPct">—</span></label><div class="bar"><i id="sbFlowBar"></i></div></div>
       <div class="status" id="sbStatus" aria-live="polite">Set a configuration and watch the room cool.</div>
@@ -90,12 +92,12 @@
         </div></div>
       <div class="ctl"><label for="sbWs">Wind speed <span class="rangeval" id="sbWsVal">5</span></label>
         <input type="range" id="sbWs" min="0" max="30" step="1" value="5"></div>
-      <div class="ctl"><label for="sbIt">Starting indoor temp <span class="rangeval" id="sbItVal">74°F</span></label>
-        <input type="range" id="sbIt" min="40" max="95" step="1" value="74"></div>
-      <div class="ctl"><label for="sbOt">Outdoor temp <span class="rangeval" id="sbOtVal">64°F</span></label>
-        <input type="range" id="sbOt" min="40" max="95" step="1" value="64"></div>
+      <div class="ctl"><label for="sbIt">Starting indoor temp <span class="rangeval" id="sbItVal">78°F</span></label>
+        <input type="range" id="sbIt" min="40" max="95" step="1" value="78"></div>
+      <div class="ctl"><label for="sbOt">Outdoor temp <span class="rangeval" id="sbOtVal">70°F</span></label>
+        <input type="range" id="sbOt" min="40" max="95" step="1" value="70"></div>
       <div class="actions">
-        <button class="btn-reset" id="sbReset">Reset room → 74°F</button>
+        <button class="btn-reset" id="sbReset">Reset room → 78°F</button>
         <button class="btn-best" id="sbBest">Load best: South · Out</button>
       </div>
       <p class="note"><b>How the model works:</b> cooling speed is driven by the <b>air-exchange rate</b>. The biggest factor is whether a complete <b>intake → exhaust path</b> exists. A sealed fan stalls itself — the one-in/one-out rule. Open or close each window independently; with multiple openings available, the model draws the dominant pressure-assisted path. For the default wind toward <b>South</b>, a South-window exhaust can pull from a windward North window.</p>
@@ -173,10 +175,10 @@
             <input type="range" id="raWs" min="0" max="30" step="1" value="5"></div>
         </div>
         <div>
-          <div class="ctl"><label for="raIt">Starting indoor temp <span class="rangeval" id="raItVal">74°F</span></label>
-            <input type="range" id="raIt" min="40" max="95" step="1" value="74"></div>
-          <div class="ctl"><label for="raOt">Outdoor temp <span class="rangeval" id="raOtVal">64°F</span></label>
-            <input type="range" id="raOt" min="40" max="95" step="1" value="64"></div>
+          <div class="ctl"><label for="raIt">Starting indoor temp <span class="rangeval" id="raItVal">78°F</span></label>
+            <input type="range" id="raIt" min="40" max="95" step="1" value="78"></div>
+          <div class="ctl"><label for="raOt">Outdoor temp <span class="rangeval" id="raOtVal">70°F</span></label>
+            <input type="range" id="raOt" min="40" max="95" step="1" value="70"></div>
           <div class="actions">
             <button class="btn-reset" id="raReset">Reset</button>
             <button class="btn-best" id="raStart">▶ Start race</button>
@@ -236,54 +238,26 @@
     </div>
   </div>
 
-  <!-- ===================== REAL-WORLD TRIALS ===================== -->
-  <div id="trialBlock" class="panel">
-    <h2>Real-world trial logger — measured cooling</h2>
-    <p class="section-copy">Log measured room-temperature trials under real conditions. Setup rankings use combined measured cooling per hour; they are independent of the toy simulation.</p>
-    <form id="trialForm">
-      <div class="compact-grid">
-        <div class="field"><label for="trialFanLoc">Fan location</label><select id="trialFanLoc"><option value="north">North window</option><option value="east">East window</option><option value="south" selected>South window</option><option value="west">West window</option></select></div>
-        <div class="field"><label for="trialFanMode">Fan mode</label><select id="trialFanMode"><option value="out">Out</option><option value="in">In</option><option value="exchange">Exchange</option><option value="off">Off</option></select></div>
-        <div class="field"><label for="trialNorthOpen">North window</label><select id="trialNorthOpen"><option value="open">Open</option><option value="closed">Closed</option></select></div>
-        <div class="field"><label for="trialEastOpen">East window</label><select id="trialEastOpen"><option value="open">Open</option><option value="closed">Closed</option></select></div>
-        <div class="field"><label for="trialSouthOpen">South window</label><select id="trialSouthOpen"><option value="open">Open</option><option value="closed">Closed</option></select></div>
-        <div class="field"><label for="trialWestOpen">West window</label><select id="trialWestOpen"><option value="open">Open</option><option value="closed">Closed</option></select></div>
-        <div class="field"><label for="trialStart">Starting temp °F</label><input id="trialStart" type="number" step="0.1" value="74" required></div>
-        <div class="field"><label for="trialEnd">Ending temp °F</label><input id="trialEnd" type="number" step="0.1" value="72" required></div>
-        <div class="field"><label for="trialOutdoor">Outdoor temp °F · optional</label><input id="trialOutdoor" type="number" step="0.1" value="64"></div>
-        <div class="field"><label for="trialMinutes">Trial duration minutes</label><input id="trialMinutes" type="number" min="0.1" step="0.1" value="30" required></div>
-        <div class="field wide"><label for="trialNotes">Notes</label><textarea id="trialNotes" placeholder="Wind, outdoor temperature, fan speed, door state, observations…"></textarea></div>
-      </div>
-      <div class="actions">
-        <button class="btn-best" type="submit">Add measured trial</button>
-        <button class="btn-reset" type="button" id="exportTrials">Export JSON</button>
-        <button class="btn-reset" type="button" id="importTrials">Import JSON</button>
-        <button class="btn-reset" type="button" id="clearTrials">Clear trials</button>
-      </div>
-      <input type="file" id="importTrialsFile" accept=".json,application/json" hidden>
-      <div class="trial-msg" id="trialMsg" aria-live="polite"></div>
-    </form>
-
-    <h3 class="minor-heading">Setup ranking</h3>
-    <p class="section-copy">Setups with logged outdoor temperatures rank by the <b>per-degree rate</b> — cooling per hour per °F of indoor–outdoor gap — which stays comparable across different weather. Setups without an outdoor reading rank below them by raw °F/hour.</p>
-    <div class="table-wrap"><table class="trial-table">
-      <thead><tr><th>Rank</th><th>Setup</th><th>Trials</th><th>Measured cooling</th><th>Per-degree rate</th></tr></thead>
-      <tbody id="trialRanking"></tbody>
-    </table></div>
-
-    <h3 class="minor-heading">Logged trials</h3>
-    <div class="table-wrap"><table class="trial-table">
-      <thead><tr><th>Setup</th><th>Start → end</th><th>Outdoor</th><th>Duration</th><th>Cooling rate</th><th>Notes</th><th></th></tr></thead>
-      <tbody id="trialRows"></tbody>
-    </table></div>
-  </div>
-
   <footer>
     Toy physics for intuition, not an HVAC load calc · historical wind-pattern data via the free <a href="https://open-meteo.com" style="color:var(--cool)">Open-Meteo</a> archive (no key)<br>
-    Falls back to clearly labeled Philadelphia sample climatology · default scenario 74°F in · 64°F out · windows facing North, East, South &amp; West
+    Falls back to clearly labeled Philadelphia sample climatology · default scenario 78°F in · 70°F out · windows facing North, East, South &amp; West
   </footer>
 </div>
 
-<script type="module" src="js/app.js"></script>
+<script>
+  (()=>{
+    const notice=document.getElementById("bootError");
+    const show=message=>{notice.innerHTML=message;notice.hidden=false;};
+    if(location.protocol==="file:"){
+      show('The simulation needs a local web server. In this folder, run <code>python3 -m http.server 8000 --bind 127.0.0.1</code>, then open <code>http://127.0.0.1:8000</code>.');
+      return;
+    }
+    const timer=setTimeout(()=>{
+      if(document.documentElement.dataset.appReady!=="true")show("The simulation could not start. Reload this page to refresh its JavaScript modules.");
+    },1800);
+    window.addEventListener("window-fan-lab-ready",()=>{clearTimeout(timer);notice.hidden=true;},{once:true});
+  })();
+</script>
+<script type="module" src="js/app.js?v=2.4.1"></script>
 </body>
 </html>

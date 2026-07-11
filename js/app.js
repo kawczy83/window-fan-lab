@@ -2,6 +2,7 @@ import {
   WIND,
   WINDOWS,
   WINDOW_IDS,
+  DEFAULT_INDOOR,
   windowLabel,
   ensureFanWindow,
   isWindowOpen,
@@ -21,13 +22,12 @@ import {
   resetSim,
   spawn,
   stepParticles,
-} from "./model.js";
-import { getDomRefs, setLeadingText, setPressed } from "./dom.js";
-import { prepCanvas, tempColor, drawRoom } from "./draw.js";
-import { drawChartSingle } from "./charts.js";
-import { createRaceController } from "./race.js";
-import { createWindRose } from "./wind-rose.js";
-import { createTrialsController } from "./trials.js";
+} from "./model.js?v=2.4.1";
+import { getDomRefs, setLeadingText, setPressed } from "./dom.js?v=2.4.1";
+import { prepCanvas, tempColor, drawRoom } from "./draw.js?v=2.4.1";
+import { drawChartSingle } from "./charts.js?v=2.4.1";
+import { createRaceController } from "./race.js?v=2.4.1";
+import { createWindRose } from "./wind-rose.js?v=2.4.1";
 
   /* =================== STATUS TEXT (sandbox) =================== */
   function statusText(st){
@@ -55,7 +55,7 @@ import { createTrialsController } from "./trials.js";
   }
 
   /* =================== STATE & LOOP =================== */
-  let mode="sandbox", SPEED=1, sandboxStartIndoor=74;
+  let mode="sandbox", SPEED=1, sandboxStartIndoor=DEFAULT_INDOOR;
   const REDUCED_MOTION=Boolean(window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches);
   const sandbox=makeSim();
   const A=makeSim({fanLoc:"south",fanMode:"out"});
@@ -241,7 +241,8 @@ import { createTrialsController } from "./trials.js";
   // boot
   document.querySelectorAll(".seg button, .switch button").forEach(b=>b.setAttribute("aria-pressed",b.classList.contains("active")?"true":"false"));
   createWindRose({refs,applyWindToActive}).init();
-  createTrialsController({refs,openWindowSummary}).init();
   renderAllWindowControls();
   renderBestButton();
+  document.documentElement.dataset.appReady="true";
+  window.dispatchEvent(new Event("window-fan-lab-ready"));
   requestAnimationFrame(tick);

@@ -14,6 +14,8 @@
   };
   const WINDOW_IDS=Object.keys(WINDOWS);
   const FAN_MODES=["out","in","exchange","off"];
+  const DEFAULT_INDOOR=78;
+  const DEFAULT_OUTDOOR=70;
   const windowLabel=name=>(WINDOWS[name]||WINDOWS.south).label;
   const windowState=open=>Object.fromEntries(WINDOW_IDS.map(name=>[name,open]));
   function normalizeOpenWindows(value,fanLoc,legacyOtherOpen){
@@ -41,13 +43,6 @@
     next.openWindows=normalizeOpenWindows(st.openWindows,st.fanLoc,st.otherOpen);
     applyConfig(next,cfg);
     return next;
-  }
-  function isValidTrial(t){
-    // Guards rendering against malformed stored records; openWindows stays optional (legacy otherOpen).
-    return Boolean(t&&typeof t==="object"
-      &&WINDOW_IDS.includes(t.fanLoc)&&FAN_MODES.includes(t.fanMode)
-      &&Number.isFinite(t.start)&&Number.isFinite(t.end)
-      &&Number.isFinite(t.minutes)&&t.minutes>0);
   }
   function pressure(st, windowName){
     const wind=WIND[st.windDir]||WIND.S;
@@ -164,14 +159,14 @@
   }
   /* =================== SIM FACTORY =================== */
   function makeSim(over){
-    const st=Object.assign({indoor:74,outdoor:64,fanLoc:"south",fanMode:"out",windDir:"S",windSpeed:5},over||{});
+    const st=Object.assign({indoor:DEFAULT_INDOOR,outdoor:DEFAULT_OUTDOOR,fanLoc:"south",fanMode:"out",windDir:"S",windSpeed:5},over||{});
     st.openWindows=normalizeOpenWindows(over&&over.openWindows,st.fanLoc,over&&over.otherOpen);
     delete st.otherOpen;
     ensureFanWindow(st);
     st.startIndoor=st.indoor; // anchors the temperature color scale for this scenario
     return {st, particles:[], hist:[], fanAngle:Math.random()*6, t:0, doneAt:null, lastHist:0, histT:0, spawnDebt:0};
   }
-  function resetSim(sim,indoor){ sim.st.indoor=indoor==null?74:indoor; sim.st.startIndoor=sim.st.indoor; sim.particles.length=0; sim.hist.length=0; sim.t=0; sim.doneAt=null; sim.lastHist=0; sim.histT=0; sim.spawnDebt=0; }
+  function resetSim(sim,indoor){ sim.st.indoor=indoor==null?DEFAULT_INDOOR:indoor; sim.st.startIndoor=sim.st.indoor; sim.particles.length=0; sim.hist.length=0; sim.t=0; sim.doneAt=null; sim.lastHist=0; sim.histT=0; sim.spawnDebt=0; }
 
   function spawn(sim,g,rate,fscale){
     const path=airPath(sim.st);
@@ -223,6 +218,8 @@ export {
   WINDOWS,
   WINDOW_IDS,
   FAN_MODES,
+  DEFAULT_INDOOR,
+  DEFAULT_OUTDOOR,
   windowLabel,
   windowState,
   normalizeOpenWindows,
@@ -232,7 +229,6 @@ export {
   onlyOpen,
   applyConfig,
   configState,
-  isValidTrial,
   pressure,
   otherWindows,
   chooseByPressure,

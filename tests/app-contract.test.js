@@ -91,15 +91,21 @@ test("app DOM references all point at elements in index.html", () => {
 
 test("local JavaScript module imports resolve to files in js", () => {
   const files = new Set(jsFileNames);
-  const imports = matches(allJs, /from\s+["']\.\/([^"']+\.js)["']/g);
+  const imports = matches(allJs, /from\s+["']\.\/([^"'?]+\.js)(?:\?[^"']*)?["']/g);
   const missing = imports.filter((name) => !files.has(name));
 
   assert.deepEqual([...new Set(missing)], []);
 });
 
 test("index.html declares the app stylesheet and module entrypoint", () => {
-  assert.match(indexHtml, /<link\s+rel="stylesheet"\s+href="styles\.css">/);
-  assert.match(indexHtml, /<script\s+type="module"\s+src="js\/app\.js"><\/script>/);
+  assert.match(indexHtml, /<link\s+rel="stylesheet"\s+href="styles\.css\?v=2\.4\.1">/);
+  assert.match(indexHtml, /<script\s+type="module"\s+src="js\/app\.js\?v=2\.4\.1"><\/script>/);
+});
+
+test("retired trial logger is absent from the app shell and modules", () => {
+  assert.doesNotMatch(indexHtml, /\bid="trialBlock"/);
+  assert.equal(jsFileNames.includes("trials.js"), false);
+  assert.doesNotMatch(allJs, /createTrialsController|window-fan-lab-trials/);
 });
 
 test("static server returns the app entrypoint and local assets", async () => {
@@ -111,7 +117,7 @@ test("static server returns the app entrypoint and local assets", async () => {
       {
         pathname: "/",
         contentType: "text/html",
-        body: '<script type="module" src="js/app.js"></script>',
+        body: '<script type="module" src="js/app.js?v=2.4.1"></script>',
       },
       {
         pathname: "/styles.css",
@@ -121,7 +127,7 @@ test("static server returns the app entrypoint and local assets", async () => {
       {
         pathname: "/js/app.js",
         contentType: "text/javascript",
-        body: 'from "./model.js";',
+        body: 'from "./model.js?v=2.4.1";',
       },
       ...jsFileNames.filter((name) => name !== "app.js").map((name) => ({
         pathname: `/js/${name}`,

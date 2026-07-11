@@ -1,6 +1,7 @@
 import {
   windowState,
   onlyOpen,
+  DEFAULT_INDOOR,
   applyConfig,
   resetSim,
   FLOW_MAX,
@@ -8,10 +9,10 @@ import {
   flowModel,
   spawn,
   stepParticles,
-} from "./model.js";
-import { drawRoom } from "./draw.js";
-import { drawChartRace } from "./charts.js";
-import { setLeadingText } from "./dom.js";
+} from "./model.js?v=2.4.1";
+import { drawRoom } from "./draw.js?v=2.4.1";
+import { drawChartRace } from "./charts.js?v=2.4.1";
+import { setLeadingText } from "./dom.js?v=2.4.1";
 
 const EPS=0.08;
 const PRESETS={
@@ -37,7 +38,7 @@ function raceVerdict(aDoneAt,bDoneAt,warming){
 }
 
 function createRaceController({A,B,refs,geos,contexts,chart,setSegActive,renderWindowControls,openWindowSummary,integrate,getSpeed,reducedMotion}){
-  let raceStartIndoor=74, raceRunning=false, winner=null, raceTie=false;
+  let raceStartIndoor=DEFAULT_INDOOR, raceRunning=false, winner=null, raceTie=false;
   const simRows=[
     [A,geos.A,contexts.A,refs.timerA,refs.flowA,refs.runnerA,refs.labelA],
     [B,geos.B,contexts.B,refs.timerB,refs.flowB,refs.runnerB,refs.labelB],

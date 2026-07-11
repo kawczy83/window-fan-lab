@@ -4,10 +4,6 @@ function byId(id){
   return el;
 }
 
-function title(s){
-  return s.charAt(0).toUpperCase()+s.slice(1);
-}
-
 function setLeadingText(el,text){
   if(el.firstChild&&el.firstChild.nodeType===3)el.firstChild.nodeValue=text;
   else el.prepend(document.createTextNode(text));
@@ -74,28 +70,7 @@ function getDomRefs(){
     lonInput:byId("lon"),
     fetchRoseBtn:byId("fetchRose"),
     geoBtn:byId("geoBtn"),
-    trialFanLoc:byId("trialFanLoc"),
-    trialFanMode:byId("trialFanMode"),
-    trialStart:byId("trialStart"),
-    trialEnd:byId("trialEnd"),
-    trialOutdoor:byId("trialOutdoor"),
-    trialMinutes:byId("trialMinutes"),
-    trialNotes:byId("trialNotes"),
-    trialMsg:byId("trialMsg"),
-    trialRows:byId("trialRows"),
-    trialRanking:byId("trialRanking"),
-    trialForm:byId("trialForm"),
-    clearTrials:byId("clearTrials"),
-    exportTrials:byId("exportTrials"),
-    importTrials:byId("importTrials"),
-    importTrialsFile:byId("importTrialsFile"),
-    trialOpenSelects:{
-      north:byId("trialNorthOpen"),
-      east:byId("trialEastOpen"),
-      south:byId("trialSouthOpen"),
-      west:byId("trialWestOpen"),
-    },
   };
 }
 
-export { byId, title, setLeadingText, setPressed, getDomRefs };
+export { byId, setLeadingText, setPressed, getDomRefs };

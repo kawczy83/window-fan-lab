@@ -1,4 +1,4 @@
-import { WIND, WINDOW_IDS, isWindowOpen, winOf } from "./model.js";
+import { DEFAULT_INDOOR, WIND, WINDOW_IDS, isWindowOpen, winOf } from "./model.js?v=2.4.1";
 
 const lerp=(a,b,t)=>a+(b-a)*t;
 
@@ -14,7 +14,7 @@ function prepCanvas(cv){
 
 function tempColor(st,t){
   // Cyan↔red mapped over the scenario's own range, so warming rooms redden instead of staying cyan.
-  const start=Number.isFinite(st.startIndoor)?st.startIndoor:74;
+  const start=Number.isFinite(st.startIndoor)?st.startIndoor:DEFAULT_INDOOR;
   const lo=Math.min(start,st.outdoor), hi=Math.max(start,st.outdoor);
   const k=Math.max(0,Math.min(1,(t-lo)/Math.max(1,hi-lo)));
   const c=[34,211,238], w=[251,113,133];
