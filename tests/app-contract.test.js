@@ -98,8 +98,8 @@ test("local JavaScript module imports resolve to files in js", () => {
 });
 
 test("index.html declares the app stylesheet and module entrypoint", () => {
-  assert.match(indexHtml, /<link\s+rel="stylesheet"\s+href="styles\.css\?v=2\.4\.1">/);
-  assert.match(indexHtml, /<script\s+type="module"\s+src="js\/app\.js\?v=2\.4\.1"><\/script>/);
+  assert.match(indexHtml, /<link\s+rel="stylesheet"\s+href="styles\.css\?v=2\.5\.0">/);
+  assert.match(indexHtml, /<script\s+type="module"\s+src="js\/app\.js\?v=2\.5\.0"><\/script>/);
 });
 
 test("retired trial logger is absent from the app shell and modules", () => {
@@ -117,7 +117,7 @@ test("static server returns the app entrypoint and local assets", async () => {
       {
         pathname: "/",
         contentType: "text/html",
-        body: '<script type="module" src="js/app.js?v=2.4.1"></script>',
+        body: '<script type="module" src="js/app.js?v=2.5.0"></script>',
       },
       {
         pathname: "/styles.css",
@@ -127,7 +127,7 @@ test("static server returns the app entrypoint and local assets", async () => {
       {
         pathname: "/js/app.js",
         contentType: "text/javascript",
-        body: 'from "./model.js?v=2.4.1";',
+        body: 'from "./model.js?v=2.5.0";',
       },
       ...jsFileNames.filter((name) => name !== "app.js").map((name) => ({
         pathname: `/js/${name}`,
