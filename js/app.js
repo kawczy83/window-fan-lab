@@ -8,7 +8,6 @@ import {
   availableWindows,
   applyConfig,
   FLOW_MAX,
-  HIST_MAX,
   flowModel,
   bestConfigFor,
   geomFor,
@@ -19,13 +18,18 @@ import {
 } from "./model.js?v=2.6.0";
 import { getDomRefs, setLeadingText, setPressed } from "./dom.js?v=2.6.0";
 import { prepCanvas, tempColor, drawRoom } from "./draw.js?v=2.6.0";
-import { drawChartSingle } from "./charts.js?v=2.6.0";
+import { drawChartSingle, drawChartRace } from "./charts.js?v=2.6.0";
 import { createRaceController } from "./race.js?v=2.6.0";
 import { createWindRose } from "./wind-rose.js?v=2.6.0";
 import { statusText } from "./status.js?v=2.6.0";
+import { createWindControls } from "./environment.js?v=2.6.0";
+import { resetHistory, recordHistory } from "./history.js?v=2.6.0";
+import { normalizeUnit, fromUnit, unitSymbol, unitName, formatTemp, formatTempWithUnit, labelTempSlider, syncTempSlider, loadUnit, saveUnit } from "./units.js?v=2.6.0";
 
   /* =================== STATE & LOOP =================== */
   let mode="sandbox", SPEED=1, sandboxStartIndoor=DEFAULT_INDOOR;
+  const unitStore=(()=>{try{return window.localStorage;}catch(err){return null;}})(); // access itself can throw
+  let unit=loadUnit(unitStore); // display only: temperatures stay in °F inside the simulation
   const REDUCED_MOTION=Boolean(window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches);
   const sandbox=makeSim();
   const A=makeSim({fanLoc:"south",fanMode:"out"});
@@ -43,8 +47,8 @@ import { statusText } from "./status.js?v=2.6.0";
   const refs=getDomRefs();
   const {
     sbRoom,sbChart,raRoom,rbRoom,raChart,sbIn,sbOut,sbFlowBar,sbFlowPct,sbStatus,legendIn,legendOut,
-    sbWs,sbWsVal,sbIt,sbItVal,sbOt,sbOtVal,sbReset,sbBest,
-    modeSwitch,sandboxView,raceView,speedSeg,currentWindDir,currentWs,currentWsVal,applyCurrentWind,
+    sbIt,sbItVal,sbOt,sbOtVal,sbReset,sbBest,
+    modeSwitch,sandboxView,raceView,speedSeg,unitSeg,
   }=refs;
   const sbP=prepCanvas(sbRoom), sbCtx=sbP.ctx, sbGeo=geomFor(sbP.W,sbP.H);
   const raP=prepCanvas(raRoom), raCtx=raP.ctx, raGeo=geomFor(raP.W,raP.H);
@@ -62,6 +66,8 @@ import { statusText } from "./status.js?v=2.6.0";
     legendOut.lastChild.nodeValue=warmIn?"cool indoor air out":"warm indoor air out";
   }
 
+  resetHistory(sandbox);
+  let lastStatus="";
   let last=performance.now();
   function tick(now){
     const realDt=Math.min(0.05,(now-last)/1000); last=now;
@@ -73,18 +79,19 @@ import { statusText } from "./status.js?v=2.6.0";
         spawn(sandbox,sbGeo,rate,fscale); stepParticles(sandbox,sbGeo,fscale);
         sandbox.fanAngle += (sandbox.st.fanMode==="off"?0:0.06+rate*0.22)*(sandbox.st.fanMode==="in"?-1:1)*SPEED*fscale;
       }
-      drawRoom(sbCtx,sbGeo,sandbox);
-      sandbox.histT+=dt;
-      if(sandbox.histT-sandbox.lastHist>=0.1){sandbox.hist.push(sandbox.st.indoor);if(sandbox.hist.length>HIST_MAX)sandbox.hist.shift();sandbox.lastHist=sandbox.histT;}
-      drawChartSingle(sbChartP,sandbox);
-      setLeadingText(sbIn,sandbox.st.indoor.toFixed(1));
+      drawRoom(sbCtx,sbGeo,sandbox,{unit});
+      recordHistory(sandbox,dt);
+      drawChartSingle(sbChartP,sandbox,unit);
+      setLeadingText(sbIn,formatTemp(sandbox.st.indoor,unit,1));
       sbIn.style.color=tempColor(sandbox.st,sandbox.st.indoor);
-      setLeadingText(sbOut,String(sandbox.st.outdoor));
+      setLeadingText(sbOut,formatTemp(sandbox.st.outdoor,unit));
       sbOut.style.color=tempColor(sandbox.st,sandbox.st.outdoor);
       renderLegend();
       const pct=Math.round(Math.min(1,rate/FLOW_MAX)*100);
       sbFlowBar.style.width=pct+"%";sbFlowPct.textContent=pct+"%";
-      sbStatus.innerHTML=statusText(sandbox.st);
+      refs.sbFlowMeter.setAttribute("aria-valuenow",pct);
+      const status=statusText(sandbox.st);
+      if(status!==lastStatus){sbStatus.innerHTML=status;lastStatus=status;}
     } else race.tick(now,dt,fscale);
     requestAnimationFrame(tick);
   }
@@ -92,11 +99,11 @@ import { statusText } from "./status.js?v=2.6.0";
   /* =================== UI WIRING =================== */
   const simByKey={sb:sandbox,A:A,B:B};
   function applySeg(target,key,val){
-    if(target==="ENV"){ A.st[key]=val; B.st[key]=val; if(key==="windDir"){/*nothing else*/} return; }
     const sim=simByKey[target];
     sim.st[key]=val;
     ensureFanWindow(sim.st);
     renderWindowControls(target);
+    if(target!=="sb")race.reset();
   }
   const segmentBoxes=new Map();
   const windowBoxes=new Map();
@@ -135,12 +142,13 @@ import { statusText } from "./status.js?v=2.6.0";
       sim.st.openWindows[name]=!sim.st.openWindows[name];
       renderWindowControls(box.dataset.sim);
       if(box.dataset.sim==="sb")renderBestButton();
+      else race.reset();
     });
   });
 
   function sandboxBestConfig(){return bestConfigFor(Object.assign({},sandbox.st,{indoor:sandboxStartIndoor}));}
   function renderBestButton(){
-    const cfg=sandboxBestConfig(), modeLabel={out:"Out",in:"In",exchange:"Exchange"};
+    const cfg=sandboxBestConfig(), modeLabel={out:"Exhaust",in:"Intake",exchange:"Exchange"};
     const opens=WINDOW_IDS.filter(name=>cfg.openWindows[name]&&!sandbox.st.openWindows[name]);
     let text;
     if(opens.length) text=`Open ${opens.map(windowLabel).join(" + ")} · fan ${cfg.fanMode==="off"?"off":`${modeLabel[cfg.fanMode]} at ${windowLabel(cfg.fanLoc)}`}`;
@@ -149,13 +157,15 @@ import { statusText } from "./status.js?v=2.6.0";
     sbBest.textContent="Load best: "+text;
   }
 
+  function resetSandbox(){resetSim(sandbox,sandboxStartIndoor);resetHistory(sandbox);}
+
   // sandbox sliders/buttons
-  sbWs.addEventListener("input",e=>{sandbox.st.windSpeed=+e.target.value;sbWsVal.textContent=e.target.value;renderBestButton();});
-  sbIt.addEventListener("input",e=>{sandboxStartIndoor=+e.target.value;sbItVal.textContent=e.target.value+"°F";sbReset.textContent="Reset room → "+e.target.value+"°F";resetSim(sandbox,sandboxStartIndoor);renderBestButton();});
-  sbOt.addEventListener("input",e=>{sandbox.st.outdoor=+e.target.value;sbOtVal.textContent=e.target.value+"°F";renderBestButton();});
-  sbReset.addEventListener("click",()=>resetSim(sandbox,sandboxStartIndoor));
+  function renderResetLabel(){sbReset.textContent="Reset room → "+formatTempWithUnit(sandboxStartIndoor,unit);}
+  sbIt.addEventListener("input",e=>{sandboxStartIndoor=fromUnit(+e.target.value,unit);labelTempSlider(sbIt,sbItVal,sandboxStartIndoor,unit);renderResetLabel();resetSandbox();renderBestButton();});
+  sbOt.addEventListener("input",e=>{sandbox.st.outdoor=fromUnit(+e.target.value,unit);labelTempSlider(sbOt,sbOtVal,sandbox.st.outdoor,unit);renderBestButton();});
+  sbReset.addEventListener("click",()=>resetSandbox());
   sbBest.addEventListener("click",()=>{
-    const cfg=sandboxBestConfig();applyConfig(sandbox.st,cfg);resetSim(sandbox,sandboxStartIndoor);
+    const cfg=sandboxBestConfig();applyConfig(sandbox.st,cfg);resetSandbox();
     setSegActive("sb","fanLoc",cfg.fanLoc);setSegActive("sb","fanMode",cfg.fanMode);
     renderWindowControls("sb");
     renderBestButton(); // applying a pair suggestion opens windows, which changes what "best" reads as
@@ -171,6 +181,7 @@ import { statusText } from "./status.js?v=2.6.0";
     openWindowSummary,
     integrate,
     getSpeed:()=>SPEED,
+    getUnit:()=>unit,
     reducedMotion:REDUCED_MOTION,
   });
 
@@ -179,8 +190,8 @@ import { statusText } from "./status.js?v=2.6.0";
     const b=e.target.closest("button");if(!b)return;
     [...e.currentTarget.children].forEach(c=>setPressed(c,c===b));
     mode=b.dataset.m;
-    sandboxView.style.display = mode==="sandbox"?"grid":"none";
-    raceView.style.display = mode==="race"?"block":"none";
+    sandboxView.hidden=mode!=="sandbox";
+    raceView.hidden=mode!=="race";
   });
   // speed
   speedSeg.addEventListener("click",e=>{
@@ -188,32 +199,48 @@ import { statusText } from "./status.js?v=2.6.0";
     [...e.currentTarget.children].forEach(c=>setPressed(c,c===b));SPEED=+b.dataset.s;
   });
 
-  /* =================== CURRENT WIND =================== */
-  function applyWindToActive(toward,speed){
-    if(mode==="sandbox"){
-      sandbox.st.windDir=toward; setSegActive("sb","windDir",toward);
-      if(Number.isFinite(speed)){sandbox.st.windSpeed=speed;sbWs.value=speed;sbWsVal.textContent=speed;}
-      renderBestButton();
-    } else race.setWind(toward,speed);
+  // temperature unit: switching only changes what is shown, never the simulated temperatures
+  function applyUnit(next){
+    unit=normalizeUnit(next);
+    [...unitSeg.children].forEach(c=>setPressed(c,c.dataset.u===unit));
+    for(const el of [sbIn,sbOut])el.querySelector(".u").textContent=unitSymbol(unit);
+    setLeadingText(sbIn,formatTemp(sandbox.st.indoor,unit,1));
+    setLeadingText(sbOut,formatTemp(sandbox.st.outdoor,unit));
+    sbRoom.setAttribute("aria-label",`Animated room view with indoor temperature in ${unitName(unit)}`);
+    raRoom.setAttribute("aria-label",`Config A room with indoor temperature in ${unitName(unit)}`);
+    rbRoom.setAttribute("aria-label",`Config B room with indoor temperature in ${unitName(unit)}`);
+    syncTempSlider(sbIt,sbItVal,sandboxStartIndoor,unit);
+    syncTempSlider(sbOt,sbOtVal,sandbox.st.outdoor,unit);
+    renderResetLabel();
+    sbChart.setAttribute("aria-label",`Indoor temperature in ${unitName(unit)} over relative simulation time`);
+    raChart.setAttribute("aria-label",`Temperatures for configs A and B in ${unitName(unit)} over relative simulation time`);
+    race.renderUnits();
+    // Redraw immediately, including the inactive view, without stepping either simulation.
+    drawRoom(sbCtx,sbGeo,sandbox,{unit});
+    drawRoom(raCtx,raGeo,A,{small:true,unit});
+    drawRoom(rbCtx,rbGeo,B,{small:true,unit});
+    drawChartSingle(sbChartP,sandbox,unit);
+    drawChartRace(raChartP,A,B,unit);
   }
-  let currentWindToward="S";
-  currentWindDir.addEventListener("click",e=>{
+  unitSeg.addEventListener("click",e=>{
     const b=e.target.closest("button");if(!b)return;
-    [...e.currentTarget.children].forEach(c=>setPressed(c,c===b));currentWindToward=b.dataset.v;
+    applyUnit(b.dataset.u);saveUnit(unitStore,unit);
   });
-  currentWs.addEventListener("input",e=>{currentWsVal.textContent=e.target.value+" mph";});
-  applyCurrentWind.addEventListener("click",e=>{
-    const btn=e.currentTarget; // currentTarget is null once dispatch ends — capture before the timeout
-    applyWindToActive(currentWindToward,+currentWs.value);
-    btn.textContent="✓ Applied current wind";
-    setTimeout(()=>{btn.textContent="Apply current wind to active model";},1800);
-  });
+
+  // A single wind input keeps both views under the same weather.
+  function applySharedWind(toward,speed){
+    sandbox.st.windDir=toward;sandbox.st.windSpeed=speed;
+    race.setWind(toward,speed);
+    renderBestButton();
+  }
+  const windControls=createWindControls({refs,onChange:applySharedWind});
 
   // boot
   document.querySelectorAll(".seg button, .switch button").forEach(b=>b.setAttribute("aria-pressed",b.classList.contains("active")?"true":"false"));
-  createWindRose({refs,applyWindToActive}).init();
+  createWindRose({refs,applyWindToActive:(toward,source)=>windControls.apply(toward,undefined,source)}).init();
   renderAllWindowControls();
   renderBestButton();
+  applyUnit(unit);
   document.documentElement.dataset.appReady="true";
   window.dispatchEvent(new Event("window-fan-lab-ready"));
   requestAnimationFrame(tick);

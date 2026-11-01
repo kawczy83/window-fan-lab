@@ -1,4 +1,5 @@
 import { DEFAULT_INDOOR, WIND, WINDOW_IDS, isWindowOpen, winOf } from "./model.js?v=2.6.0";
+import { toUnit, unitSymbol } from "./units.js?v=2.6.0";
 
 const lerp=(a,b,t)=>a+(b-a)*t;
 
@@ -156,8 +157,8 @@ function drawRoom(ctx,g,sim,opts){
   }
   ctx.save();ctx.shadowColor=tempColor(st,st.indoor);ctx.shadowBlur=18;
   ctx.fillStyle=tempColor(st,st.indoor);ctx.font=`800 ${g.WIN*(opts.small?.78:.92)|0}px 'Archivo'`;ctx.textAlign="center";ctx.textBaseline="middle";
-  ctx.fillText(st.indoor.toFixed(1)+"°",centerX,centerY-(opts.small?3:7));ctx.restore();
-  ctx.font="700 9px 'JetBrains Mono'";const label="INDOOR AIR",tw=ctx.measureText(label).width;
+  ctx.fillText(toUnit(st.indoor,opts.unit).toFixed(1)+"°",centerX,centerY-(opts.small?3:7));ctx.restore();
+  ctx.font="700 9px 'JetBrains Mono'";const label=`INDOOR AIR · ${unitSymbol(opts.unit)}`,tw=ctx.measureText(label).width;
   ctx.fillStyle="rgba(5,11,18,.52)";roundRect(ctx,centerX-tw/2-8,centerY+g.WIN*.48-10,tw+16,20,6);ctx.fill();
   ctx.fillStyle="#75859b";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(label,centerX,centerY+g.WIN*.48);
 }

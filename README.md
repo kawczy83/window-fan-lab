@@ -8,11 +8,11 @@ race mode, and a historical wind rose.
 
 **Sandbox** — explore one configuration and watch the room cool:
 
-![Sandbox view: top-down room with a south-window fan exhausting, instruments, and controls](screenshots/sandbox.png)
+![Sandbox view: live room and airflow measurements beside the fan controls](screenshots/sandbox.png)
 
 **Race mode** — two configurations head-to-head under the same weather:
 
-![Race view: two rooms racing to outdoor temperature, with the winner banner and cooling chart](screenshots/race.png)
+![Race view: accessible Start and Reset actions above two rooms with their own configuration controls](screenshots/race.png)
 
 ## Features
 
@@ -22,7 +22,12 @@ race mode, and a historical wind rose.
 - Race two fan configurations under the same conditions.
 - Load a historical wind rose for a latitude and longitude using the free
   [Open-Meteo](https://open-meteo.com/) archive API.
-- Apply prevailing or manually entered wind conditions to the simulation.
+- Use one shared wind panel for manual inputs or historical prevailing direction,
+  with an explicit FROM → TOWARD conversion and wind speed in mph.
+- Show temperatures in °F or °C with the toolbar toggle, which the browser remembers.
+  Charts plot temperature against relative simulation time. Relative airflow is a
+  percentage of the model reference maximum, not air changes per hour.
+- Change race settings to clear its results and start a fresh comparison.
 
 ## Run Locally
 
@@ -55,6 +60,7 @@ node --test
 - Historical wind data is requested from Open-Meteo for the default Philadelphia
   sample on startup and whenever you submit coordinates. Responses are cached in
   `localStorage` for 24 hours so repeat visits don't refetch.
+- Your °F/°C choice is saved in `localStorage`.
 - Font files are requested from Google Fonts when the page loads.
 - Browser geolocation is used only when you choose the location button.
 - The project has no backend.
@@ -88,10 +94,13 @@ not modeled, so rooms always settle at the outdoor temperature.
 │   ├── app.js
 │   ├── charts.js
 │   ├── dom.js
+│   ├── environment.js
+│   ├── history.js
 │   ├── draw.js
 │   ├── model.js
 │   ├── race.js
 │   ├── status.js
+│   ├── units.js
 │   └── wind-rose.js
 ├── screenshots/
 │   ├── race.png
@@ -99,8 +108,10 @@ not modeled, so rooms always settle at the outdoor temperature.
 └── tests/
     ├── app-contract.test.js
     ├── controllers.test.js
+    ├── frontend.test.js
     ├── model.test.js
-    └── status.test.js
+    ├── status.test.js
+    └── units.test.js
 ```
 
 ## GitHub Pages
