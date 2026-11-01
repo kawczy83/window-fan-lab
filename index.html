@@ -9,248 +9,370 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=2.5.0">
+<link rel="stylesheet" href="styles.css?v=2.6.0">
 </head>
 <body>
-<div class="wrap">
-  <header class="top">
-    <div class="tag">Thermal Airflow Bench · v2.5</div>
-    <h1>Window Fan Lab <em>// race configs · read the wind</em></h1>
-    <p class="sub">Top-down room physics for a four-window bedroom (windows facing North, East, South &amp; West). Run a single Sandbox, race two configurations head-to-head, or pull a historical wind rose for your coordinates and feed the prevailing direction straight into the model.</p>
-    <div class="header-meta" aria-label="Model highlights">
-      <span>04 cardinal windows</span>
-      <span>wind-aware airflow</span>
-      <span>live thermal model</span>
+  <div class="wrap">
+    <header class="top">
+      <div>
+        <div class="tag">Airflow simulator · v2.6</div>
+        <h1>Window Fan Lab</h1>
+      </div>
+      <p class="sub">Explore airflow. Compare fan setups.<span class="desktop-copy">
+          <br>Find a better breeze for your room.</span>
+      </p>
+    </header>
+    <div class="boot-error" id="bootError" role="alert" hidden>
     </div>
-  </header>
-
-  <div class="boot-error" id="bootError" role="alert" hidden></div>
-
-  <div class="toolbar">
-    <div class="switch" id="modeSwitch" role="group" aria-label="View mode">
-      <button data-m="sandbox" class="active">Sandbox</button>
-      <button data-m="race">Race two configs</button>
-    </div>
-    <div class="speed">
-      <span class="speed-label">Simulation speed</span>
-      <div class="seg" id="speedSeg" role="group" aria-label="Simulation speed">
-        <button data-s="1" class="active">1×</button>
-        <button data-s="2">2×</button>
-        <button data-s="4">4×</button>
+    <nav class="toolbar" aria-label="Simulation views, speed and units">
+      <div class="switch" id="modeSwitch" role="group" aria-label="View mode">
+        <button data-m="sandbox" class="active">Sandbox</button>
+        <button data-m="race">Race configs</button>
       </div>
-    </div>
-  </div>
-
-  <!-- ===================== SANDBOX ===================== -->
-  <div id="sandboxView" class="grid">
-    <div class="panel room-panel">
-      <h2>Room — top-down view</h2>
-      <div class="stage">
-        <div class="stage-badge"><i></i>Live airflow</div>
-        <canvas id="sbRoom" width="640" height="520" role="img" aria-label="Animated top-down room view showing airflow particles, windows, and the fan"></canvas>
-      </div>
-      <div class="legend">
-        <span id="legendIn"><i class="dot" style="background:var(--cool)"></i>cool outdoor air in</span>
-        <span id="legendOut"><i class="dot" style="background:var(--warm)"></i>warm indoor air out</span>
-        <span><i class="dot" style="background:#5b6b86"></i>wind direction</span>
-      </div>
-    </div>
-    <div class="panel instrument-panel">
-      <h2>Instruments</h2>
-      <div class="readout">
-        <div class="stat"><div class="k">Indoor</div><div class="v" id="sbIn" style="color:var(--warm)">78.0<span class="u">°F</span></div></div>
-        <div class="stat"><div class="k">Outdoor</div><div class="v" id="sbOut" style="color:var(--cool)">70<span class="u">°F</span></div></div>
-      </div>
-      <div class="ctl"><label>Air exchange rate <span class="rangeval" id="sbFlowPct">—</span></label><div class="bar"><i id="sbFlowBar"></i></div></div>
-      <div class="status" id="sbStatus" aria-live="polite">Set a configuration and watch the room cool.</div>
-      <canvas class="chart" id="sbChart" width="520" height="240" role="img" aria-label="Indoor temperature history chart"></canvas>
-
-      <h2 class="section-title">Controls</h2>
-      <div class="ctl"><label>Fan location</label>
-        <div class="seg" data-sim="sb" data-key="fanLoc" role="group" aria-label="Fan location">
-          <button data-v="north">North window</button>
-          <button data-v="east">East window</button>
-          <button data-v="south" class="active">South window</button>
-          <button data-v="west">West window</button>
-        </div></div>
-      <div class="ctl"><label>Fan mode</label>
-        <div class="seg" data-sim="sb" data-key="fanMode" role="group" aria-label="Fan mode">
-          <button data-v="out" class="active">Out</button>
-          <button data-v="in">In</button>
-          <button data-v="exchange">Exchange</button>
-          <button data-v="off">Off</button>
-        </div></div>
-      <div class="ctl"><label>Window state · active fan window stays open</label>
-        <div class="seg window-seg" data-sim="sb" data-windows role="group" aria-label="Window state">
-          <button data-window="north" class="active">North · open</button>
-          <button data-window="east" class="active">East · open</button>
-          <button data-window="south" class="active">South · open</button>
-          <button data-window="west" class="active">West · open</button>
-        </div></div>
-      <div class="ctl"><label>Wind blowing toward</label>
-        <div class="seg" data-sim="sb" data-key="windDir" role="group" aria-label="Wind direction">
-          <button data-v="N">North ↑</button>
-          <button data-v="NE">NE ↗</button>
-          <button data-v="E">East →</button>
-          <button data-v="SE">SE ↘</button>
-          <button data-v="S" class="active">South ↓</button>
-          <button data-v="SW">SW ↙</button>
-          <button data-v="W">West ←</button>
-          <button data-v="NW">NW ↖</button>
-        </div></div>
-      <div class="ctl"><label for="sbWs">Wind speed <span class="rangeval" id="sbWsVal">5</span></label>
-        <input type="range" id="sbWs" min="0" max="30" step="1" value="5"></div>
-      <div class="ctl"><label for="sbIt">Starting indoor temp <span class="rangeval" id="sbItVal">78°F</span></label>
-        <input type="range" id="sbIt" min="40" max="95" step="1" value="78"></div>
-      <div class="ctl"><label for="sbOt">Outdoor temp <span class="rangeval" id="sbOtVal">70°F</span></label>
-        <input type="range" id="sbOt" min="40" max="95" step="1" value="70"></div>
-      <div class="actions">
-        <button class="btn-reset" id="sbReset">Reset room → 78°F</button>
-        <button class="btn-best" id="sbBest">Load best: South · Out</button>
-      </div>
-      <p class="note"><b>How the model works:</b> cooling speed is driven by the <b>air-exchange rate</b>. The biggest factor is whether a complete <b>intake → exhaust path</b> exists. A sealed fan stalls itself — the one-in/one-out rule. Open or close each window independently; with multiple openings available, the model draws the dominant pressure-assisted path. For the default wind toward <b>South</b>, a South-window exhaust can pull from a windward North window.</p>
-    </div>
-  </div>
-
-  <!-- ===================== RACE ===================== -->
-  <div id="raceView">
-    <div class="panel race-panel">
-      <h2>Head-to-head · same room, same weather, different fan setup</h2>
-      <div class="race-rooms">
-        <div class="runner" id="runnerA">
-          <div class="runner-head"><span class="chip chipA">CONFIG A</span><div class="timer" id="timerA">—<small> rel. units</small></div></div>
-          <canvas class="room" id="raRoom" width="380" height="360" role="img" aria-label="Animated room view for config A"></canvas>
-          <div class="mini-flow"><span id="labelA">south · out · open N/E/S/W</span><span>flow <b id="flowA">—</b></span></div>
+      <div class="toolbar-controls">
+        <div class="units">
+          <span class="speed-label">Temperature</span>
+          <div class="seg" id="unitSeg" role="group" aria-label="Temperature unit">
+            <button data-u="F" class="active">°F</button>
+            <button data-u="C">°C</button>
+          </div>
         </div>
-        <div class="runner" id="runnerB">
-          <div class="runner-head"><span class="chip chipB">CONFIG B</span><div class="timer" id="timerB">—<small> rel. units</small></div></div>
-          <canvas class="room" id="rbRoom" width="380" height="360" role="img" aria-label="Animated room view for config B"></canvas>
-          <div class="mini-flow"><span id="labelB">south · in · open N/E/S/W</span><span>flow <b id="flowB">—</b></span></div>
-        </div>
-      </div>
-
-      <div class="winbar" id="winbar" aria-live="polite">First to reach outdoor temp wins in relative simulation time. Press Start.</div>
-      <canvas class="chart race-chart" id="raChart" width="700" height="200" role="img" aria-label="Race temperature history chart for configs A and B"></canvas>
-
-      <div class="presets">
-        <button data-preset="outin">Out vs In</button>
-        <button data-preset="sealed">Path vs Sealed</button>
-        <button data-preset="exch">Fan vs Exchange</button>
-        <button data-preset="ws">South vs West (out)</button>
-        <button data-preset="ns">South vs North (out)</button>
-        <button data-preset="we">West vs East (out)</button>
-      </div>
-
-      <div class="race-config">
-        <div class="cfg outlineA">
-          <div class="ctl"><label>A — Fan location</label>
-            <div class="seg" data-sim="A" data-key="fanLoc" role="group" aria-label="Config A fan location">
-              <button data-v="north">North</button><button data-v="east">East</button><button data-v="south" class="active">South</button><button data-v="west">West</button>
-            </div></div>
-          <div class="ctl"><label>A — Fan mode</label>
-            <div class="seg" data-sim="A" data-key="fanMode" role="group" aria-label="Config A fan mode">
-              <button data-v="out" class="active">Out</button><button data-v="in">In</button><button data-v="exchange">Exch</button><button data-v="off">Off</button>
-            </div></div>
-          <div class="ctl" style="margin-bottom:0"><label>A — Window state</label>
-            <div class="seg window-seg" data-sim="A" data-windows role="group" aria-label="Config A window state">
-              <button data-window="north" class="active">N · open</button><button data-window="east" class="active">E · open</button><button data-window="south" class="active">S · open</button><button data-window="west" class="active">W · open</button>
-            </div></div>
-        </div>
-        <div class="cfg outlineB">
-          <div class="ctl"><label>B — Fan location</label>
-            <div class="seg" data-sim="B" data-key="fanLoc" role="group" aria-label="Config B fan location">
-              <button data-v="north">North</button><button data-v="east">East</button><button data-v="south" class="active">South</button><button data-v="west">West</button>
-            </div></div>
-          <div class="ctl"><label>B — Fan mode</label>
-            <div class="seg" data-sim="B" data-key="fanMode" role="group" aria-label="Config B fan mode">
-              <button data-v="out">Out</button><button data-v="in" class="active">In</button><button data-v="exchange">Exch</button><button data-v="off">Off</button>
-            </div></div>
-          <div class="ctl" style="margin-bottom:0"><label>B — Window state</label>
-            <div class="seg window-seg" data-sim="B" data-windows role="group" aria-label="Config B window state">
-              <button data-window="north" class="active">N · open</button><button data-window="east" class="active">E · open</button><button data-window="south" class="active">S · open</button><button data-window="west" class="active">W · open</button>
-            </div></div>
-        </div>
-      </div>
-
-      <h2 class="section-title">Shared environment</h2>
-      <div class="race-config">
-        <div>
-          <div class="ctl"><label>Wind blowing toward</label>
-            <div class="seg" data-sim="ENV" data-key="windDir" role="group" aria-label="Wind direction">
-              <button data-v="N">North ↑</button><button data-v="NE">NE ↗</button><button data-v="E">East →</button><button data-v="SE">SE ↘</button><button data-v="S" class="active">South ↓</button><button data-v="SW">SW ↙</button><button data-v="W">West ←</button><button data-v="NW">NW ↖</button>
-            </div></div>
-          <div class="ctl" style="margin-bottom:0"><label for="raWs">Wind speed <span class="rangeval" id="raWsVal">5</span></label>
-            <input type="range" id="raWs" min="0" max="30" step="1" value="5"></div>
-        </div>
-        <div>
-          <div class="ctl"><label for="raIt">Starting indoor temp <span class="rangeval" id="raItVal">78°F</span></label>
-            <input type="range" id="raIt" min="40" max="95" step="1" value="78"></div>
-          <div class="ctl"><label for="raOt">Outdoor temp <span class="rangeval" id="raOtVal">70°F</span></label>
-            <input type="range" id="raOt" min="40" max="95" step="1" value="70"></div>
-          <div class="actions">
-            <button class="btn-reset" id="raReset">Reset</button>
-            <button class="btn-best" id="raStart">▶ Start race</button>
+        <div class="speed">
+          <span class="speed-label">Simulation speed</span>
+          <div class="seg" id="speedSeg" role="group" aria-label="Simulation speed">
+            <button data-s="1" class="active">1×</button>
+            <button data-s="2">2×</button>
+            <button data-s="4">4×</button>
           </div>
         </div>
       </div>
-      <p class="note"><b>Reading the result:</b> a clean through-path (fan + at least one other open window) cools fast; isolating the fan stalls it. Race timers are <b>relative simulation time</b>, not calibrated elapsed seconds. <b>Out vs In</b> is usually close once both have a path. Opposing wall presets make the wind-pressure effect easiest to compare.</p>
-    </div>
-  </div>
-
-  <!-- ===================== WIND ROSE ===================== -->
-  <div id="roseBlock" class="panel feature-panel">
-    <h2>Historical wind rose — prevailing pattern for your area</h2>
-    <div class="rose-grid">
-      <canvas id="rose" width="600" height="600" role="img" aria-label="Wind rose showing how often wind blows from each direction"></canvas>
-      <div class="rose-meta">
-        <div class="src">Source <span class="pill loading" id="rosePill">loading…</span></div>
-        <h3 id="roseLoc">Philadelphia, PA · fallback sample data</h3>
-        <p id="roseSummary" aria-live="polite">Fetching the last 12 months of hourly wind data…</p>
-        <p style="color:var(--muted);font-size:12px">Petals show how often wind blows <b style="color:var(--warm-deep)">FROM</b> each direction. The longest petal is the prevailing wind; the model in this app uses the direction the wind blows <b style="color:var(--cool)">TOWARD</b>, so the two are opposite.</p>
-        <div class="loc-row">
-          <div class="f"><label for="lat">Latitude</label><input type="number" id="lat" min="-90" max="90" step="any" value="39.9526"></div>
-          <div class="f"><label for="lon">Longitude</label><input type="number" id="lon" min="-180" max="180" step="any" value="-75.1652"></div>
-          <button id="fetchRose">Fetch</button>
-          <button class="geo-btn" id="geoBtn">Use my location</button>
+    </nav>
+    <details class="panel environment-panel" id="environmentPanel">
+      <summary>
+        <span class="environment-title">Wind &amp; environment</span>
+        <span id="environmentSummary">Manual · N → S · 5 mph</span>
+        <span class="edit-label">Edit <span aria-hidden="true">⌄</span>
+        </span>
+      </summary>
+      <div class="environment-body">
+        <p class="section-copy">Wind applies to the Sandbox and both race rooms. Changing it resets the race.</p>
+        <div class="environment-topline">
+          <div class="switch" id="windSourceSwitch" role="group" aria-label="Wind input source">
+            <button data-source="manual" class="active" aria-controls="manualWindPanel">Manual wind</button>
+            <button data-source="history" aria-controls="historyWindPanel">Wind history</button>
+          </div>
+          <div class="ctl wind-speed">
+            <label for="currentWs">Wind speed <span class="rangeval" id="currentWsVal">5 mph</span>
+            </label>
+            <input type="range" id="currentWs" min="0" max="30" step="1" value="5">
+          </div>
         </div>
-        <div class="rose-apply">
-          <button id="applyRose">↳ Apply historical prevailing direction to model</button>
+        <div id="manualWindPanel">
+          <div class="ctl">
+            <label>Wind coming from</label>
+            <div class="seg compass-seg" id="currentWindDir" role="group" aria-label="Wind coming from">
+              <button data-v="N" class="active">N</button>
+              <button data-v="NE">NE</button>
+              <button data-v="E">E</button>
+              <button data-v="SE">SE</button>
+              <button data-v="S">S</button>
+              <button data-v="SW">SW</button>
+              <button data-v="W">W</button>
+              <button data-v="NW">NW</button>
+            </div>
+          </div>
+          <p class="field-hint">Use the direction reported by your weather app. Changes apply immediately.</p>
         </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ===================== CURRENT WIND ===================== -->
-  <div id="currentWindBlock" class="panel feature-panel current-panel">
-    <h2>Optional current wind — manual model input</h2>
-    <p class="section-copy">The historical wind rose above is a pattern summary, not current weather. Enter an observed current wind separately when you want the model to reflect conditions now.</p>
-    <div class="compact-grid">
-      <div class="ctl" style="margin-bottom:0"><label>Current wind blowing toward</label>
-        <div class="seg" id="currentWindDir" role="group" aria-label="Current wind direction">
-          <button data-v="N">North ↑</button>
-          <button data-v="NE">NE ↗</button>
-          <button data-v="E">East →</button>
-          <button data-v="SE">SE ↘</button>
-          <button data-v="S" class="active">South ↓</button>
-          <button data-v="SW">SW ↙</button>
-          <button data-v="W">West ←</button>
-          <button data-v="NW">NW ↖</button>
+        <div id="historyWindPanel" hidden>
+          <div id="roseBlock" class="rose-grid">
+            <canvas id="rose" width="600" height="600" role="img" aria-label="Wind rose showing how often wind blows from each direction">
+            </canvas>
+            <div class="rose-meta">
+              <div class="src">Source <span class="pill loading" id="rosePill">loading…</span>
+              </div>
+              <h3 id="roseLoc">Philadelphia, PA · fallback sample data</h3>
+              <p id="roseSummary" aria-live="polite">Fetching the last 12 months of hourly wind data…</p>
+              <p class="field-hint">Petals show where wind comes FROM. This is a historical pattern, not current weather. Applying it uses the nearest eight-point direction; the wind speed above stays as set.</p>
+              <div class="loc-row">
+                <div class="f">
+                  <label for="lat">Latitude</label>
+                  <input type="number" id="lat" min="-90" max="90" step="any" value="39.9526">
+                </div>
+                <div class="f">
+                  <label for="lon">Longitude</label>
+                  <input type="number" id="lon" min="-180" max="180" step="any" value="-75.1652">
+                </div>
+                <button id="fetchRose">Load history</button>
+                <button class="geo-btn" id="geoBtn">Use my location</button>
+              </div>
+              <div class="rose-apply">
+                <button id="applyRose">Use this wind direction</button>
+              </div>
+            </div>
+          </div>
         </div>
+        <p class="wind-preview" id="windPreview" aria-live="polite">FROM North → TOWARD South ↓ · 5 mph</p>
       </div>
-      <div class="ctl" style="margin-bottom:0"><label for="currentWs">Current wind speed <span class="rangeval" id="currentWsVal">5 mph</span></label>
-        <input type="range" id="currentWs" min="0" max="30" step="1" value="5">
+    </details>
+    <main>
+      <div id="sandboxView">
+        <div class="grid">
+          <section class="panel room-panel" aria-labelledby="roomTitle">
+            <div class="panel-heading">
+              <h2 id="roomTitle">Your room</h2>
+              <span class="live-label">
+                <i>
+                </i>Live airflow</span>
+            </div>
+            <div class="stage">
+              <canvas id="sbRoom" width="640" height="520" role="img" aria-label="Animated top-down room view showing airflow particles, windows, and the fan">
+              </canvas>
+            </div>
+            <div class="readout">
+              <div class="stat">
+                <div class="k">Indoor now</div>
+                <div class="v" id="sbIn">78.0<span class="u">°F</span>
+                </div>
+              </div>
+              <div class="stat">
+                <div class="k">Outdoor</div>
+                <div class="v" id="sbOut">70<span class="u">°F</span>
+                </div>
+              </div>
+              <div class="stat flow-stat">
+                <div class="k" id="flowLabel">Relative airflow</div>
+                <div class="v" id="sbFlowPct">—</div>
+                <div class="bar" role="meter" aria-labelledby="flowLabel" aria-describedby="flowHelp" aria-valuemin="0" aria-valuemax="100" id="sbFlowMeter">
+                  <i id="sbFlowBar">
+                  </i>
+                </div>
+              </div>
+            </div>
+            <div class="legend">
+              <span id="legendIn">
+                <i class="dot" style="background:var(--cool)">
+                </i>cool outdoor air in</span>
+              <span id="legendOut">
+                <i class="dot" style="background:var(--warm)">
+                </i>warm indoor air out</span>
+            </div>
+          </section>
+          <section class="panel control-panel" aria-labelledby="setupTitle">
+            <h2 id="setupTitle">Set up your fan</h2>
+            <div class="ctl">
+              <label>Fan location</label>
+              <div class="seg" data-sim="sb" data-key="fanLoc" role="group" aria-label="fan location">
+                <button data-v="north">North</button>
+                <button data-v="east">East</button>
+                <button data-v="south" class="active">South</button>
+                <button data-v="west">West</button>
+              </div>
+            </div>
+            <div class="ctl">
+              <label>Fan mode</label>
+              <div class="seg" data-sim="sb" data-key="fanMode" role="group" aria-label="fan mode">
+                <button data-v="out" class="active">Exhaust</button>
+                <button data-v="in">Intake</button>
+                <button data-v="exchange">Exchange</button>
+                <button data-v="off">Off</button>
+              </div>
+            </div>
+            <div class="ctl">
+              <label>Open windows</label>
+              <div class="seg window-seg" data-sim="sb" data-windows role="group" aria-label="Open windows">
+                <button data-window="north" class="active">North · open</button>
+                <button data-window="east" class="active">East · open</button>
+                <button data-window="south" class="active">South · open</button>
+                <button data-window="west" class="active">West · open</button>
+              </div>
+              <p class="field-hint">The window holding a running fan stays open.</p>
+            </div>
+            <div class="actions sandbox-actions">
+              <button class="btn-reset" id="sbReset">Reset room → 78°F</button>
+              <button class="btn-best" id="sbBest">Load best: South · Exhaust</button>
+            </div>
+            <h3 class="section-title">Temperatures</h3>
+            <div class="temperature-controls">
+              <div class="ctl">
+                <label for="sbIt">Starting indoor <span class="rangeval" id="sbItVal">78°F</span>
+                </label>
+                <input type="range" id="sbIt" min="40" max="95" step="1" value="78">
+              </div>
+              <div class="ctl">
+                <label for="sbOt">Outdoor <span class="rangeval" id="sbOtVal">70°F</span>
+                </label>
+                <input type="range" id="sbOt" min="40" max="95" step="1" value="70">
+              </div>
+            </div>
+            <div class="status" id="sbStatus" aria-live="polite">Set a configuration and watch the room cool.</div>
+            <details class="model-note">
+              <summary>How the model works</summary>
+              <p>Airflow depends on open windows, fan placement, wind pressure, and the indoor/outdoor temperature difference. A fan needs a second opening for a through-path. The particles show airflow across the open windows; the status describes the main streams. Relative airflow is measured against the model’s reference maximum, not in air changes per hour.</p>
+            </details>
+          </section>
+        </div>
+        <section class="panel chart-panel">
+          <div class="panel-heading">
+            <h2>Temperature over time</h2>
+            <span class="chart-key">
+              <i class="dot" style="background:var(--warm)">
+              </i>Indoor <span>┄ Outdoor target</span>
+            </span>
+          </div>
+          <canvas class="chart" id="sbChart" width="1000" height="260" role="img" aria-label="Indoor temperature in Fahrenheit over relative simulation time">
+          </canvas>
+          <p class="field-hint">Time is in relative simulation units, not real cooling minutes. <span id="flowHelp">Relative airflow is a percentage of the model’s reference maximum, not air changes per hour.</span>
+          </p>
+        </section>
       </div>
-      <div class="actions" style="margin:0">
-        <button class="btn-best" id="applyCurrentWind">Apply current wind to active model</button>
+      <div id="raceView" hidden>
+        <div class="race-command panel">
+          <div class="race-command-top">
+            <div>
+              <h2>Race two configurations</h2>
+              <p class="section-copy">Same room. Same weather. Change a setup to reset the comparison.</p>
+            </div>
+            <div class="actions">
+              <button class="btn-reset" id="raReset">Reset</button>
+              <button class="btn-best" id="raStart">Start race</button>
+            </div>
+          </div>
+          <div class="winbar" id="winbar" aria-live="polite">First to reach outdoor temperature wins. Press Start race.</div>
+        </div>
+        <section class="panel presets-panel" aria-label="Race presets">
+          <h2>Try a comparison</h2>
+          <div class="presets">
+            <button data-preset="outin">Exhaust vs Intake</button>
+            <button data-preset="sealed">Open path vs Sealed</button>
+            <button data-preset="exch">Exhaust vs Exchange</button>
+            <button data-preset="ws">South vs West</button>
+            <button data-preset="ns">South vs North</button>
+            <button data-preset="we">West vs East</button>
+          </div>
+        </section>
+        <div class="race-rooms">
+          <section class="runner outlineA" id="runnerA" aria-label="Configuration A">
+            <div class="runner-head">
+              <h3 class="chip chipA">Config A</h3>
+              <div class="timer" id="timerA">0.0<small> sim units</small>
+              </div>
+            </div>
+            <canvas class="room" id="raRoom" width="380" height="360" role="img" aria-label="Animated room view for config A">
+            </canvas>
+            <div class="mini-flow">
+              <span id="labelA">South · exhaust</span>
+              <span>Relative flow <b id="flowA">—</b>
+              </span>
+            </div>
+            <div class="cfg">
+              <div class="ctl">
+                <label>Fan location</label>
+                <div class="seg" data-sim="A" data-key="fanLoc" role="group" aria-label="Config A fan location">
+                  <button data-v="north">North</button>
+                  <button data-v="east">East</button>
+                  <button data-v="south" class="active">South</button>
+                  <button data-v="west">West</button>
+                </div>
+              </div>
+              <div class="ctl">
+                <label>Fan mode</label>
+                <div class="seg" data-sim="A" data-key="fanMode" role="group" aria-label="Config A fan mode">
+                  <button data-v="out" class="active">Exhaust</button>
+                  <button data-v="in">Intake</button>
+                  <button data-v="exchange">Exchange</button>
+                  <button data-v="off">Off</button>
+                </div>
+              </div>
+              <div class="ctl">
+                <label>Open windows</label>
+                <div class="seg window-seg" data-sim="A" data-windows role="group" aria-label="Config A open windows">
+                  <button data-window="north" class="active">North · open</button>
+                  <button data-window="east" class="active">East · open</button>
+                  <button data-window="south" class="active">South · open</button>
+                  <button data-window="west" class="active">West · open</button>
+                </div>
+                <p class="field-hint">The window holding a running fan stays open.</p>
+              </div>
+            </div>
+          </section>
+          <section class="runner outlineB" id="runnerB" aria-label="Configuration B">
+            <div class="runner-head">
+              <h3 class="chip chipB">Config B</h3>
+              <div class="timer" id="timerB">0.0<small> sim units</small>
+              </div>
+            </div>
+            <canvas class="room" id="rbRoom" width="380" height="360" role="img" aria-label="Animated room view for config B">
+            </canvas>
+            <div class="mini-flow">
+              <span id="labelB">South · intake</span>
+              <span>Relative flow <b id="flowB">—</b>
+              </span>
+            </div>
+            <div class="cfg">
+              <div class="ctl">
+                <label>Fan location</label>
+                <div class="seg" data-sim="B" data-key="fanLoc" role="group" aria-label="Config B fan location">
+                  <button data-v="north">North</button>
+                  <button data-v="east">East</button>
+                  <button data-v="south" class="active">South</button>
+                  <button data-v="west">West</button>
+                </div>
+              </div>
+              <div class="ctl">
+                <label>Fan mode</label>
+                <div class="seg" data-sim="B" data-key="fanMode" role="group" aria-label="Config B fan mode">
+                  <button data-v="out">Exhaust</button>
+                  <button data-v="in" class="active">Intake</button>
+                  <button data-v="exchange">Exchange</button>
+                  <button data-v="off">Off</button>
+                </div>
+              </div>
+              <div class="ctl">
+                <label>Open windows</label>
+                <div class="seg window-seg" data-sim="B" data-windows role="group" aria-label="Config B open windows">
+                  <button data-window="north" class="active">North · open</button>
+                  <button data-window="east" class="active">East · open</button>
+                  <button data-window="south" class="active">South · open</button>
+                  <button data-window="west" class="active">West · open</button>
+                </div>
+                <p class="field-hint">The window holding a running fan stays open.</p>
+              </div>
+            </div>
+          </section>
+        </div>
+        <section class="panel race-environment">
+          <h2>Shared temperatures</h2>
+          <div class="temperature-controls">
+            <div class="ctl">
+              <label for="raIt">Starting indoor <span class="rangeval" id="raItVal">78°F</span>
+              </label>
+              <input type="range" id="raIt" min="40" max="95" step="1" value="78">
+            </div>
+            <div class="ctl">
+              <label for="raOt">Outdoor <span class="rangeval" id="raOtVal">70°F</span>
+              </label>
+              <input type="range" id="raOt" min="40" max="95" step="1" value="70">
+            </div>
+          </div>
+          <p class="field-hint">Wind is shared through Wind &amp; environment above. When outside is warmer, the configuration that resists warming longest wins.</p>
+        </section>
+        <section class="panel chart-panel">
+          <div class="panel-heading">
+            <h2>Race temperature history</h2>
+            <span class="chart-key">
+              <i class="dot" style="background:var(--a)">
+              </i>A <i class="dot" style="background:var(--b)">
+              </i>B <span>┄ Outdoor target</span>
+            </span>
+          </div>
+          <canvas class="chart race-chart" id="raChart" width="1000" height="260" role="img" aria-label="Temperatures for configs A and B in Fahrenheit over relative simulation time">
+          </canvas>
+          <p class="field-hint">Timers use relative simulation units, not elapsed seconds. Relative airflow is a percentage of the model’s reference maximum; higher airflow exchanges temperature faster.</p>
+        </section>
       </div>
-    </div>
+    </main>
+    <footer>A four-window room facing North, East, South &amp; West · Physics for intuition, not an HVAC load calculation.<br>Historical wind via <a href="https://open-meteo.com">Open-Meteo</a> · Clearly labeled Philadelphia sample data if history is unavailable.</footer>
   </div>
-
-  <footer>
-    Toy physics for intuition, not an HVAC load calc · historical wind-pattern data via the free <a href="https://open-meteo.com" style="color:var(--cool)">Open-Meteo</a> archive (no key)<br>
-    Falls back to clearly labeled Philadelphia sample climatology · default scenario 78°F in · 70°F out · windows facing North, East, South &amp; West
-  </footer>
-</div>
 
 <script>
   (()=>{
@@ -266,6 +388,6 @@
     window.addEventListener("window-fan-lab-ready",()=>{clearTimeout(timer);notice.hidden=true;},{once:true});
   })();
 </script>
-<script type="module" src="js/app.js?v=2.5.0"></script>
+<script type="module" src="js/app.js?v=2.6.0"></script>
 </body>
 </html>

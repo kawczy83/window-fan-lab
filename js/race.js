@@ -5,14 +5,15 @@ import {
   applyConfig,
   resetSim,
   FLOW_MAX,
-  HIST_MAX,
   flowModel,
   spawn,
   stepParticles,
-} from "./model.js?v=2.5.0";
-import { drawRoom } from "./draw.js?v=2.5.0";
-import { drawChartRace } from "./charts.js?v=2.5.0";
-import { setLeadingText } from "./dom.js?v=2.5.0";
+} from "./model.js?v=2.6.0";
+import { drawRoom } from "./draw.js?v=2.6.0";
+import { drawChartRace } from "./charts.js?v=2.6.0";
+import { setLeadingText, setPressed } from "./dom.js?v=2.6.0";
+import { resetHistory, recordHistory } from "./history.js?v=2.6.0";
+import { fromUnit, labelTempSlider, syncTempSlider } from "./units.js?v=2.6.0";
 
 const EPS=0.08;
 const PRESETS={
@@ -37,7 +38,7 @@ function raceVerdict(aDoneAt,bDoneAt,warming){
   return null;
 }
 
-function createRaceController({A,B,refs,geos,contexts,chart,setSegActive,renderWindowControls,openWindowSummary,integrate,getSpeed,reducedMotion}){
+function createRaceController({A,B,refs,geos,contexts,chart,setSegActive,renderWindowControls,openWindowSummary,integrate,getSpeed,reducedMotion,getUnit=()=>"F"}){
   let raceStartIndoor=DEFAULT_INDOOR, raceRunning=false, winner=null, raceTie=false;
   const simRows=[
     [A,geos.A,contexts.A,refs.timerA,refs.flowA,refs.runnerA,refs.labelA],
@@ -46,9 +47,14 @@ function createRaceController({A,B,refs,geos,contexts,chart,setSegActive,renderW
 
   function resetRace(){
     resetSim(A,raceStartIndoor);resetSim(B,raceStartIndoor);
+    resetHistory(A);resetHistory(B);
+    refs.raceView.dataset.raceState="ready";
+    refs.raStart.textContent="Start race";
+    setLeadingText(refs.timerA,"0.0");setLeadingText(refs.timerB,"0.0");
+    document.querySelectorAll(".presets button").forEach(button=>setPressed(button,false));
     raceRunning=false;winner=null;raceTie=false;refs.winbar.className="winbar";
     const warming=A.st.outdoor>raceStartIndoor;
-    refs.winbar.textContent=warming?"Last to reach outdoor temp wins (best insulation) in relative simulation time. Press Start.":"First to reach outdoor temp wins in relative simulation time. Press Start.";
+    refs.winbar.textContent=warming?"Last to approach outdoor temperature wins. Press Start race.":"First to approach outdoor temperature wins. Press Start race.";
     refs.runnerA.classList.remove("win");refs.runnerB.classList.remove("win");
   }
 
@@ -64,17 +70,14 @@ function createRaceController({A,B,refs,geos,contexts,chart,setSegActive,renderW
         spawn(sim,g,raceRunning?rate:rate*0.4,fscale); stepParticles(sim,g,fscale);
         sim.fanAngle += (sim.st.fanMode==="off"?0:(raceRunning?0.06+rate*0.22:0.05))*(sim.st.fanMode==="in"?-1:1)*speed*fscale;
       }
-      drawRoom(ctx,g,sim,{small:true});
-      if(raceRunning){
-        sim.histT+=dt;
-        if(sim.histT-sim.lastHist>=0.1){sim.hist.push(sim.st.indoor);if(sim.hist.length>HIST_MAX)sim.hist.shift();sim.lastHist=sim.histT;}
-      }
+      drawRoom(ctx,g,sim,{small:true,unit:getUnit()});
+      if(raceRunning)recordHistory(sim,dt);
       setLeadingText(timerEl,sim.doneAt?sim.doneAt.toFixed(1):sim.t.toFixed(1));
       flowEl.textContent=Math.round(Math.min(1,rate/FLOW_MAX)*100)+"%";
-      labelEl.textContent=`${sim.st.fanLoc} · ${sim.st.fanMode} · open ${openWindowSummary(sim.st)}`;
+      labelEl.textContent=`${sim.st.fanLoc} · ${{out:"exhaust",in:"intake",exchange:"exchange",off:"off"}[sim.st.fanMode]} · open ${openWindowSummary(sim.st)}`;
       runnerEl.classList.toggle("win", winner===sim||raceTie);
     });
-    drawChartRace(chart,A,B);
+    drawChartRace(chart,A,B,getUnit());
 
     if(raceRunning && !winner && !raceTie){
       const warming = A.st.outdoor > raceStartIndoor;
@@ -92,20 +95,21 @@ function createRaceController({A,B,refs,geos,contexts,chart,setSegActive,renderW
           : `🏁 Config ${v.result} reaches outdoor temp first — ${wt} relative units`;
       }
     }
-    if(raceRunning && A.doneAt && B.doneAt){ raceRunning=false; }
+    if(raceRunning && A.doneAt && B.doneAt){raceRunning=false;refs.raceView.dataset.raceState="finished";}
   }
 
   function setWind(toward,speed){
-    A.st.windDir=B.st.windDir=toward; setSegActive("ENV","windDir",toward);
-    if(Number.isFinite(speed)){A.st.windSpeed=B.st.windSpeed=speed;refs.raWs.value=speed;refs.raWsVal.textContent=speed;}
+    A.st.windDir=B.st.windDir=toward;
+    if(Number.isFinite(speed))A.st.windSpeed=B.st.windSpeed=speed;
+    resetRace();
   }
 
-  refs.raWs.addEventListener("input",e=>{A.st.windSpeed=B.st.windSpeed=+e.target.value;refs.raWsVal.textContent=e.target.value;});
-  refs.raIt.addEventListener("input",e=>{raceStartIndoor=+e.target.value;refs.raItVal.textContent=e.target.value+"°F";resetRace();});
+  // Sliders show the chosen unit; the race itself always runs in °F.
+  refs.raIt.addEventListener("input",e=>{raceStartIndoor=fromUnit(+e.target.value,getUnit());labelTempSlider(refs.raIt,refs.raItVal,raceStartIndoor,getUnit());resetRace();});
   // Changing the outdoor target mid-race would move the finish line, so it resets like the indoor slider.
-  refs.raOt.addEventListener("input",e=>{A.st.outdoor=B.st.outdoor=+e.target.value;refs.raOtVal.textContent=e.target.value+"°F";resetRace();});
+  refs.raOt.addEventListener("input",e=>{A.st.outdoor=B.st.outdoor=fromUnit(+e.target.value,getUnit());labelTempSlider(refs.raOt,refs.raOtVal,A.st.outdoor,getUnit());resetRace();});
   refs.raReset.addEventListener("click",resetRace);
-  refs.raStart.addEventListener("click",()=>{resetRace();raceRunning=true;refs.winbar.textContent="Racing…";});
+  refs.raStart.addEventListener("click",()=>{resetRace();raceRunning=true;refs.raceView.dataset.raceState="running";refs.raStart.textContent="Restart race";refs.winbar.textContent="Racing… Times are relative simulation units.";});
 
   document.querySelectorAll(".presets button").forEach(btn=>{
     btn.addEventListener("click",()=>{
@@ -118,10 +122,17 @@ function createRaceController({A,B,refs,geos,contexts,chart,setSegActive,renderW
         renderWindowControls(side);
       });
       resetRace();
+      setPressed(btn,true);
     });
   });
 
-  return {tick,reset:resetRace,setWind};
+  function renderUnits(){
+    syncTempSlider(refs.raIt,refs.raItVal,raceStartIndoor,getUnit());
+    syncTempSlider(refs.raOt,refs.raOtVal,A.st.outdoor,getUnit());
+  }
+
+  resetRace();
+  return {tick,reset:resetRace,setWind,renderUnits};
 }
 
 export { createRaceController, raceVerdict };

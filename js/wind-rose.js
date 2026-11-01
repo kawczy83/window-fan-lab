@@ -1,5 +1,5 @@
-import { WIND } from "./model.js?v=2.5.0";
-import { prepCanvas } from "./draw.js?v=2.5.0";
+import { WIND } from "./model.js?v=2.6.0";
+import { prepCanvas } from "./draw.js?v=2.6.0";
 
 const DIRS16=["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
 const PHILLY=[5.5,4.5,4.0,3.5,3.5,3.5,4.0,4.5,6.0,7.0,8.5,9.5,11.5,8.5,9.0,7.0];
@@ -75,6 +75,7 @@ function drawRose(ch,roseData){
 function createWindRose({refs,applyWindToActive}){
   let roseData={pct:PHILLY.slice(), source:"fallback", loc:PHILLY_FALLBACK_LOC, meanSpeed:null};
   const roseCanvas=prepCanvas(refs.rose);
+  let requestVersion=0;
 
   function renderRoseMeta(){
     const domI=dominant(roseData.pct), fromDir=DIRS16[domI], pctv=roseData.pct[domI].toFixed(1);
@@ -91,16 +92,20 @@ function createWindRose({refs,applyWindToActive}){
     refs.roseSummary.innerHTML=errNote+
       `Prevailing wind is <span class="from">FROM ${fromDir}</span> (${pctv}% of the time)${extra}, which means it blows <span class="to">TOWARD ${toName.toUpperCase()}</span> — set the model's wind to <b>"${toName} ${toWind.arrow}"</b>.${ms}`;
     refs.applyRose.dataset.toward=toCard;
+    refs.applyRose.disabled=false;
+    refs.applyRose.textContent=roseData.source==="fallback"?"Use sample wind direction":"Use this wind direction";
     drawRose(roseCanvas,roseData);
   }
 
   async function fetchRose(lat,lon,label){
+    const request=++requestVersion;
     const cached=loadRoseCache(lat,lon);
     if(cached){
       roseData={pct:cached.pct, source:"historical", loc:cached.loc, meanSpeed:cached.meanSpeed};
       renderRoseMeta();
       return;
     }
+    refs.applyRose.disabled=true;
     refs.rosePill.className="pill loading";
     refs.rosePill.textContent="loading…";
     refs.roseSummary.textContent="Fetching the last 12 months of hourly wind data…";
@@ -113,6 +118,7 @@ function createWindRose({refs,applyWindToActive}){
       const res=await fetch(url,{signal:ctrl.signal}); clearTimeout(to);
       if(!res.ok) throw new Error("http "+res.status);
       const j=await res.json();
+      if(request!==requestVersion)return;
       const dirs=j.hourly && j.hourly.wind_direction_10m;
       const spds=j.hourly && j.hourly.wind_speed_10m;
       if(!dirs||!dirs.length) throw new Error("no data");
@@ -128,6 +134,7 @@ function createWindRose({refs,applyWindToActive}){
       roseData={pct, source:"historical", loc, meanSpeed:sCnt?sSum/sCnt:null};
       saveRoseCache(lat,lon,{pct, loc, meanSpeed:roseData.meanSpeed});
     }catch(err){
+      if(request!==requestVersion)return;
       roseData={pct:PHILLY.slice(), source:"fallback", loc:PHILLY_FALLBACK_LOC, meanSpeed:null,
         error:`Couldn't fetch wind history for ${label||"those coordinates"} — showing the fallback sample instead.`};
     }
@@ -136,7 +143,7 @@ function createWindRose({refs,applyWindToActive}){
 
   refs.fetchRoseBtn.addEventListener("click",()=>{
     const lat=+refs.latInput.value, lon=+refs.lonInput.value;
-    if(!Number.isFinite(lat)||!Number.isFinite(lon)||lat < -90||lat > 90||lon < -180||lon > 180){
+    if(!refs.latInput.value.trim()||!refs.lonInput.value.trim()||!Number.isFinite(lat)||!Number.isFinite(lon)||lat < -90||lat > 90||lon < -180||lon > 180){
       refs.roseSummary.textContent="Enter a latitude from -90 to 90 and a longitude from -180 to 180.";
       return;
     }
@@ -159,10 +166,9 @@ function createWindRose({refs,applyWindToActive}){
   refs.applyRose.addEventListener("click",e=>{
     const btn=e.currentTarget;
     const toward=btn.dataset.toward||"E";
-    applyWindToActive(toward);
+    applyWindToActive(toward,roseData.source==="historical"?"History":"Sample");
     const tn=(WIND[toward]||WIND.S).name;
-    btn.textContent=`✓ Applied historical pattern — wind toward ${tn}`;
-    setTimeout(()=>{btn.textContent="↳ Apply historical prevailing direction to model";},1800);
+    btn.textContent=`✓ Applied — wind toward ${tn}`;
   });
 
   return {
