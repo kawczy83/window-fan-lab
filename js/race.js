@@ -9,10 +9,10 @@ import {
   flowModel,
   spawn,
   stepParticles,
-} from "./model.js?v=2.5.0";
-import { drawRoom } from "./draw.js?v=2.5.0";
-import { drawChartRace } from "./charts.js?v=2.5.0";
-import { setLeadingText } from "./dom.js?v=2.5.0";
+} from "./model.js?v=2.6.0";
+import { drawRoom } from "./draw.js?v=2.6.0";
+import { drawChartRace } from "./charts.js?v=2.6.0";
+import { setLeadingText } from "./dom.js?v=2.6.0";
 
 const EPS=0.08;
 const PRESETS={

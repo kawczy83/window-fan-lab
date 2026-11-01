@@ -63,8 +63,13 @@ node --test
 
 The airflow model is intended for comparison and intuition. It is not an HVAC
 load calculation, a CFD simulation, or a substitute for indoor-air-quality
-guidance. Windows can be opened or closed individually, and the visualization
-shows the dominant pressure-assisted airflow path.
+guidance. It treats the room as a single well-mixed zone. Each open window
+feels the wind's pressure on its wall (from the Swami & Chandra low-rise
+correlation), and the fan adds a push while partly blocking its own window.
+The room settles at the indoor pressure where inflow matches outflow, and
+temperature-driven exchange and background leakage are added on top. The
+particles follow the resulting flows. Thermal mass and internal heat gains are
+not modeled, so rooms always settle at the outdoor temperature.
 
 ## Repository Layout
 
@@ -86,6 +91,7 @@ shows the dominant pressure-assisted airflow path.
 │   ├── draw.js
 │   ├── model.js
 │   ├── race.js
+│   ├── status.js
 │   └── wind-rose.js
 ├── screenshots/
 │   ├── race.png
@@ -93,7 +99,8 @@ shows the dominant pressure-assisted airflow path.
 └── tests/
     ├── app-contract.test.js
     ├── controllers.test.js
-    └── model.test.js
+    ├── model.test.js
+    └── status.test.js
 ```
 
 ## GitHub Pages

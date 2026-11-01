@@ -1,5 +1,4 @@
 import {
-  WIND,
   WINDOWS,
   WINDOW_IDS,
   DEFAULT_INDOOR,
@@ -8,51 +7,22 @@ import {
   isWindowOpen,
   availableWindows,
   applyConfig,
-  windBoost,
-  windDominated,
   FLOW_MAX,
   HIST_MAX,
   flowModel,
-  naturalFlow,
-  airPath,
   bestConfigFor,
-  otherWindows,
   geomFor,
   makeSim,
   resetSim,
   spawn,
   stepParticles,
-} from "./model.js?v=2.5.0";
-import { getDomRefs, setLeadingText, setPressed } from "./dom.js?v=2.5.0";
-import { prepCanvas, tempColor, drawRoom } from "./draw.js?v=2.5.0";
-import { drawChartSingle } from "./charts.js?v=2.5.0";
-import { createRaceController } from "./race.js?v=2.5.0";
-import { createWindRose } from "./wind-rose.js?v=2.5.0";
-
-  /* =================== STATUS TEXT (sandbox) =================== */
-  function statusText(st){
-    const path=airPath(st), openings=availableWindows(st), others=availableWindows(st,otherWindows(st.fanLoc));
-    const stalled=(st.fanMode==="in"||st.fanMode==="out")&&!others.length, off=st.fanMode==="off";
-    const dirName=(WIND[st.windDir]||WIND.S).name;
-    let msg;
-    if(off){
-      if(openings.length<2) msg=`Fan is <b>off</b> with fewer than two open windows — barely any exchange.`;
-      else{
-        const nf=naturalFlow(st);
-        if(nf>=0.9) msg=`Fan is <b>off</b>, but wind toward ${dirName} drives a <b>strong cross-breeze</b> — in via <b>${windowLabel(path.intake)}</b>, out via <b>${windowLabel(path.exhaust)}</b>.`;
-        else if(nf>=0.3) msg=`Fan is <b>off</b> — a steady wind-driven cross-breeze runs in via <b>${windowLabel(path.intake)}</b> and out via <b>${windowLabel(path.exhaust)}</b>.`;
-        else msg=`Fan is <b>off</b> — the room drifts through gentle natural exchange between open windows.`;
-      }
-    }
-    else if(stalled) msg=`Fan ${st.fanMode==="out"?"exhausting":"drawing"} without another open window. One-in/one-out rule kicks in — it stalls. Open a second window.`;
-    else if(windDominated(st)) msg=`Wind toward ${dirName} <b>overpowers the fan</b>: air streams in via <b>${windowLabel(path.intake)}</b> and out via <b>${windowLabel(path.exhaust)}</b> at the natural cross-vent rate.`;
-    else if(st.fanMode==="exchange") msg=`<b>Exchange</b> mode: one blade in, one out, through a single window. Works, but a fan + other open windows moves more air.`;
-    else {const intake=windowLabel(path.intake), exhaust=windowLabel(path.exhaust), boost=windBoost(st);
-      const windNote=boost>0.05?"<b>helping</b>":(boost<-0.05?"working against the fan":"a minor factor");
-      msg=`Clear through-path: cool air in via <b>${intake}</b>, warm out via <b>${exhaust}</b>. Wind toward ${dirName} is ${windNote} here.`;}
-    if(Math.abs(st.indoor-st.outdoor)<0.15&&!off) msg+=` <b style="color:var(--good)">Stabilised at outdoor temp.</b>`;
-    return msg;
-  }
+} from "./model.js?v=2.6.0";
+import { getDomRefs, setLeadingText, setPressed } from "./dom.js?v=2.6.0";
+import { prepCanvas, tempColor, drawRoom } from "./draw.js?v=2.6.0";
+import { drawChartSingle } from "./charts.js?v=2.6.0";
+import { createRaceController } from "./race.js?v=2.6.0";
+import { createWindRose } from "./wind-rose.js?v=2.6.0";
+import { statusText } from "./status.js?v=2.6.0";
 
   /* =================== STATE & LOOP =================== */
   let mode="sandbox", SPEED=1, sandboxStartIndoor=DEFAULT_INDOOR;
@@ -174,7 +144,8 @@ import { createWindRose } from "./wind-rose.js?v=2.5.0";
     const opens=WINDOW_IDS.filter(name=>cfg.openWindows[name]&&!sandbox.st.openWindows[name]);
     let text;
     if(opens.length) text=`Open ${opens.map(windowLabel).join(" + ")} · fan ${cfg.fanMode==="off"?"off":`${modeLabel[cfg.fanMode]} at ${windowLabel(cfg.fanLoc)}`}`;
-    else text=cfg.fanMode==="off"?"Fan off · all closed":`${windowLabel(cfg.fanLoc)} · ${modeLabel[cfg.fanMode]}`;
+    else if(cfg.fanMode==="off") text=WINDOW_IDS.some(name=>cfg.openWindows[name])?"Fan off · keep windows open":"Fan off · all closed";
+    else text=`${windowLabel(cfg.fanLoc)} · ${modeLabel[cfg.fanMode]}`;
     sbBest.textContent="Load best: "+text;
   }
 

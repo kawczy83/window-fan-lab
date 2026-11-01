@@ -44,73 +44,148 @@
     applyConfig(next,cfg);
     return next;
   }
-  function pressure(st, windowName){
-    const wind=WIND[st.windDir]||WIND.S;
-    const face=WINDOWS[windowName]||WINDOWS.south;
-    const component=face.nx*wind.x+face.ny*wind.y;
-    if(component>0) return -0.6*component; // leeward
-    if(component<0) return -component;     // windward
-    return -0.2;                           // side wall
+  // Wind pressure coefficients (Cp) per wall from Swami & Chandra's (1988) correlation for low-rise
+  // walls on a square plan: ≈ +1 facing straight into the wind. Side walls get more suction than the
+  // leeward wall (−0.74 vs −0.61), the same ordering as ASCE 7's design values (−0.7 vs −0.5).
+  function cpAtAngle(theta){ // theta: angle between the wall's outward normal and where the wind comes from
+    const h=theta/2;
+    return Math.log(1.248-0.703*Math.sin(h)-1.175*Math.sin(theta)**2+0.769*Math.cos(h)+0.717*Math.cos(h)**2);
+  }
+  const CP=Object.fromEntries(Object.entries(WIND).map(([dir,wind])=>[dir,Object.fromEntries(WINDOW_IDS.map(name=>{
+    const face=WINDOWS[name], facing=-(face.nx*wind.x+face.ny*wind.y); // 1 = wall faces straight into the wind
+    return [name,cpAtAngle(Math.acos(Math.max(-1,Math.min(1,facing))))];
+  }))]));
+  function pressureCoefficient(st,windowName){
+    return (CP[st.windDir]||CP.S)[WINDOWS[windowName]?windowName:"south"];
   }
   function otherWindows(fanLoc){return WINDOW_IDS.filter(name=>name!==fanLoc);}
-  function chooseByPressure(st,names,preferHigh){
-    return names.reduce((best,name)=>{
-      if(!best)return name;
-      return (preferHigh?pressure(st,name)>pressure(st,best):pressure(st,name)<pressure(st,best))?name:best;
-    },null);
+
+  // Airflow network: every window is an opening whose outdoor pressure is Cp × wind pressure, and the
+  // room settles at the one indoor pressure where inflow equals outflow. A fan adds a fixed push in the
+  // direction it blows but also partly blocks its window, so blowing against the wind can do worse than
+  // no fan, and every extra open window adds a path. Flow unit: a fan plus one open window in still air = 1.
+  const A_FAN=0.8;          // a window holding a box fan passes 80% of the air an open window would
+  const A_LEAK=0.01;        // a closed window still leaks a little
+  const P_FAN=1/A_FAN**2+1; // fan push (shut-off pressure), sized so fan + one open window = 1 in still air
+  const WIND_Q=0.39;        // 10 mph wind pressure in fan-push units (weather-report wind, sheltered at the house)
+  const BUOYANCY=0.05;      // warm-air-out-the-top exchange per open window at a 10°F indoor/outdoor gap
+  const INFILTRATION=0.02;  // background leakage through walls and doors
+  const SHORT_CIRCUIT=0.25; // share of an exchange fan's intake that is its own exhaust coming straight back
+  const MIN_STREAM=0.01;    // below this an opening is just leaking, not carrying a visible stream
+  const signedSqrt=x=>x<0?-Math.sqrt(-x):Math.sqrt(x);
+  function openings(st){
+    const q=WIND_Q*(st.windSpeed/10)**2, list=[];
+    for(const name of WINDOW_IDS){
+      const p=pressureCoefficient(st,name)*q;
+      if(st.fanMode!=="off"&&name===st.fanLoc){
+        if(st.fanMode==="exchange")list.push({name,p,a:A_FAN/2,fan:1,open:true},{name,p,a:A_FAN/2,fan:-1,open:true});
+        else list.push({name,p,a:A_FAN,fan:st.fanMode==="in"?1:-1,open:true});
+      }else{
+        const open=isWindowOpen(st,name);
+        list.push({name,p,a:open?1:A_LEAK,fan:0,open});
+      }
+    }
+    return list;
   }
-  function windBoost(st){
-    // Fractional wind assist (±) through the fan's through-path; 0 unless in/out with another opening.
-    if(st.fanMode!=="in"&&st.fanMode!=="out") return 0;
-    const others=availableWindows(st,otherWindows(st.fanLoc));
-    if(!others.length) return 0;
-    const otherW=chooseByPressure(st,others,st.fanMode==="out");
-    const intakeW=st.fanMode==="out"?otherW:st.fanLoc, exhaustW=st.fanMode==="out"?st.fanLoc:otherW;
-    return 0.25*(pressure(st,intakeW)-pressure(st,exhaustW))*(st.windSpeed/10);
+  function inflowAt(o,pin){
+    // Orifice flow, + into the room; a fan adds P_FAN of push in the direction it blows (fan: +1 in, −1 out).
+    return o.fan?o.fan*o.a*signedSqrt(o.fan*(o.p-pin)+P_FAN):o.a*signedSqrt(o.p-pin);
   }
-  function naturalFlow(st){
-    // Wind-driven cross-ventilation through whatever is open, fan ignored.
-    const openings=availableWindows(st);
-    if(openings.length<2) return openings.length?0.03:0.02; // <2 openings: no through-path
-    const intake=chooseByPressure(st,openings,true), exhaust=chooseByPressure(st,openings.filter(name=>name!==intake),false);
-    const draft=pressure(st,intake)-pressure(st,exhaust); // windward−leeward pressure gap, ≥0
-    return 0.05+0.35*draft*(st.windSpeed/10); // 0.05 calm/buoyant floor; rises with wind through a real pressure gap
+  function solveRoom(st){
+    // Each opening's inflow falls as indoor pressure rises, so bisection finds the unique balance point.
+    const list=openings(st);
+    let lo=Infinity,hi=-Infinity;
+    for(const o of list){lo=Math.min(lo,o.p-P_FAN);hi=Math.max(hi,o.p+P_FAN);}
+    for(let i=0;i<50;i++){
+      const mid=(lo+hi)/2;
+      let net=0;
+      for(const o of list)net+=inflowAt(o,mid);
+      if(net>0)lo=mid;else hi=mid;
+    }
+    const pin=(lo+hi)/2;
+    for(const o of list)o.q=inflowAt(o,pin);
+    return list;
   }
-  function fanFlow(st){
-    // Flow the fan alone drives through its intended path, before the natural-vent floor.
-    const others=availableWindows(st,otherWindows(st.fanLoc));
-    if(st.fanMode==="exchange") return others.length?0.60:0.50;
-    if(!others.length) return 0.05; // no through-path: fan short-circuits, only turbulent mixing
-    return Math.max(0.05, 1+windBoost(st)+((st.fanMode==="in"||st.fanMode==="out")&&st.indoor>st.outdoor?0.08:0));
+  function flowParts(st){
+    const list=solveRoom(st);
+    let through=0;
+    for(const o of list)through+=Math.max(0,o.q);
+    if(st.fanMode==="exchange"){
+      const blowIn=list.find(o=>o.fan===1), blowOut=list.find(o=>o.fan===-1);
+      through-=SHORT_CIRCUIT*Math.min(Math.max(0,blowIn.q),Math.max(0,-blowOut.q));
+    }
+    // Buoyancy works the same whichever side is warmer and grows with √|ΔT| (single-sided window exchange).
+    let area=0;
+    for(const name of WINDOW_IDS)area+=isWindowOpen(st,name)?1:A_LEAK;
+    const buoyant=BUOYANCY*area*Math.sqrt((Math.abs(st.indoor-st.outdoor)||0)/10);
+    return {list,through,buoyant};
   }
-  function windDominated(st){
-    // Wind cross-vent outruns the fan: the openings, not the fan, set the flow and its direction.
-    return st.fanMode!=="off"&&naturalFlow(st)>fanFlow(st);
-  }
-  const FLOW_MAX=2.3; // gauge calibration: best case ≈2.28 = out mode, fully wind-aligned, at the 30 mph slider max
+  const FLOW_MAX=3.4; // gauge calibration: best case ≈3.32 = fan blowing with a diagonal 30 mph wind, all open, 55°F gap
   const HIST_MAX=240; // temperature-history samples kept per sim (one per 0.1 sim-time units)
   function flowModel(st){
-    if(st.fanMode==="off") return naturalFlow(st);
-    // The fan can't stop the wind cross-venting the same openings: never below the fan-off rate.
-    return Math.max(fanFlow(st),naturalFlow(st));
+    // Wind/fan through-flow, temperature-driven exchange and background leakage combine in quadrature.
+    const {through,buoyant}=flowParts(st);
+    return Math.hypot(through,buoyant,INFILTRATION);
   }
-  function naturalPath(st){
-    const openings=availableWindows(st);
-    if(openings.length>1){
-      const intake=chooseByPressure(st,openings,true);
-      const exhaust=chooseByPressure(st,openings.filter(name=>name!==intake),false);
-      return {intake,exhaust,bidir:null};
-    }
-    return {intake:null,exhaust:null,bidir:openings[0]||null};
+  function naturalFlow(st){
+    // The same open windows with the fan switched off (and out of its window).
+    if(st.fanMode==="off") return flowModel(st);
+    const openWindows=Object.fromEntries(WINDOW_IDS.map(name=>[name,isWindowOpen(st,name)]));
+    return flowModel(Object.assign({},st,{fanMode:"off",openWindows}));
+  }
+  function windBoost(st){
+    // Fractional change the wind makes to an in/out fan's airflow (+ helps, − fights it); 0 otherwise.
+    if(st.fanMode!=="in"&&st.fanMode!=="out") return 0;
+    if(!availableWindows(st,otherWindows(st.fanLoc)).length) return 0;
+    return flowModel(st)/flowModel(Object.assign({},st,{windSpeed:0}))-1;
+  }
+  function fanReversed(st){
+    // The wind is pushing air backward through the fan (for exchange, through either half).
+    return st.fanMode!=="off"&&solveRoom(st).some(o=>o.fan&&o.fan*o.q<0);
+  }
+  function windDominated(st){
+    // The wind, not the fan, sets the main airflow path: it reverses the fan, or (exchange) the
+    // cross-breeze through the other windows outruns the fan's own intake.
+    if(st.fanMode==="off") return false;
+    const list=solveRoom(st);
+    if(list.some(o=>o.fan&&o.fan*o.q<0)) return true;
+    if(st.fanMode!=="exchange") return false;
+    let cross=0;
+    for(const o of list)if(!o.fan&&o.open)cross+=Math.max(0,o.q);
+    return cross>list.find(o=>o.fan===1).q;
+  }
+  function strongest(names,score){
+    let best=null,top=MIN_STREAM;
+    for(const name of names){const s=score(name);if(s>top){best=name;top=s;}}
+    return best;
   }
   function airPath(st){
-    // An overpowered fan doesn't set the direction: show the wind's through-path instead.
-    if(st.fanMode==="off"||windDominated(st)) return naturalPath(st);
-    const fanW=st.fanLoc, others=availableWindows(st,otherWindows(fanW));
-    if(st.fanMode==="exchange") return {intake:null,exhaust:null,bidir:fanW};
-    const otherW=chooseByPressure(st,others,st.fanMode==="out");
-    if(st.fanMode==="out") return {intake:otherW,exhaust:fanW,bidir:null};
-    return {intake:fanW,exhaust:otherW,bidir:null};
+    // The dominant intake → exhaust pair, or the one window trading air both ways.
+    const open=availableWindows(st), net=Object.fromEntries(WINDOW_IDS.map(name=>[name,0]));
+    for(const o of solveRoom(st))net[o.name]+=o.q;
+    if(st.fanMode!=="off"&&!windDominated(st)){
+      const fanW=st.fanLoc, others=open.filter(name=>name!==fanW);
+      if(st.fanMode==="exchange") return {intake:null,exhaust:null,bidir:fanW};
+      if(st.fanMode==="out") return {intake:strongest(others,name=>net[name]),exhaust:fanW,bidir:null};
+      return {intake:fanW,exhaust:strongest(others,name=>-net[name]),bidir:null};
+    }
+    // Fan off or overpowered: follow the solved flows. With no through-flow (calm, or no pressure
+    // difference between the open walls) the windows only trade air both ways.
+    const intake=strongest(open,name=>net[name]);
+    const exhaust=strongest(open.filter(name=>name!==intake),name=>-net[name]);
+    if(intake&&exhaust) return {intake,exhaust,bidir:null};
+    return {intake:null,exhaust:null,bidir:open.length===1?open[0]:null};
+  }
+  function airStreams(st){
+    // Visible inflow/outflow at each open window (an exchange fan's two halves stay separate), biggest first.
+    const {list,through,buoyant}=flowParts(st), inlets=[], outlets=[];
+    for(const o of list){
+      if(!o.open)continue;
+      if(o.q>MIN_STREAM)inlets.push({name:o.name,q:o.q,fan:o.fan});
+      else if(o.q<-MIN_STREAM)outlets.push({name:o.name,q:-o.q,fan:o.fan});
+    }
+    const biggestFirst=(a,b)=>b.q-a.q;
+    return {inlets:inlets.sort(biggestFirst),outlets:outlets.sort(biggestFirst),through,buoyant};
   }
   function bestConfigFor(st){
     // Best fan placement/mode for the windows the user actually has open — never closes an open one,
@@ -130,17 +205,17 @@
     }
     for(const fanLoc of open)
       for(const fanMode of ["out","in","exchange"])candidates.push({fanLoc,fanMode,openWindows:st.openWindows});
+    if(open.length)candidates.push({fanLoc:st.fanLoc,fanMode:"off",openWindows:st.openWindows}); // a fan fighting the wind can lose to none
     candidates.push({fanLoc:st.fanLoc,fanMode:"off",openWindows:windowState(false)});
-    // Tiebreak: in/out through a windward+leeward pair move equal air — prefer "out" (exhausting out
-    // the downwind side is the canonical, gust-stable recommendation) so the suggestion stays stable.
+    const scored=candidates.map(cfg=>({cfg,score:(cooling?1:-1)*flowModel(configState(st,cfg))}));
+    const top=Math.max(...scored.map(c=>c.score));
+    // Within 1% of the best, prefer the smallest change (keep the fan as is, then flip it where it sits),
+    // then more air; exact ties prefer "out" (exhausting downwind is the canonical, gust-stable choice).
     const modeRank={out:0,in:1,exchange:2,off:3};
-    return candidates.reduce((best,cfg)=>{
-      const score=(cooling?1:-1)*flowModel(configState(st,cfg));
-      if(!best) return {cfg,score};
-      if(score>best.score+1e-9) return {cfg,score};
-      if(Math.abs(score-best.score)<=1e-9 && modeRank[cfg.fanMode]<modeRank[best.cfg.fanMode]) return {cfg,score};
-      return best;
-    },null).cfg;
+    const change=cfg=>cfg.fanMode===st.fanMode&&(cfg.fanMode==="off"||cfg.fanLoc===st.fanLoc)?0:(cfg.fanLoc===st.fanLoc&&cfg.fanMode!=="off"?1:2);
+    const near=scored.filter(c=>c.score>=top-0.01*Math.abs(top));
+    near.sort((a,b)=>change(a.cfg)-change(b.cfg)||(Math.abs(a.score-b.score)>1e-9?b.score-a.score:modeRank[a.cfg.fanMode]-modeRank[b.cfg.fanMode]));
+    return near[0].cfg;
   }
 
   /* =================== GEOMETRY (per canvas) =================== */
@@ -168,25 +243,41 @@
   }
   function resetSim(sim,indoor){ sim.st.indoor=indoor==null?DEFAULT_INDOOR:indoor; sim.st.startIndoor=sim.st.indoor; sim.particles.length=0; sim.hist.length=0; sim.t=0; sim.doneAt=null; sim.lastHist=0; sim.histT=0; sim.spawnDebt=0; }
 
+  function pickByFlow(items){
+    let r=Math.random()*items.reduce((sum,it)=>sum+it.q,0);
+    for(const it of items){r-=it.q;if(r<=0)return it;}
+    return items[items.length-1];
+  }
   function spawn(sim,g,rate,fscale){
-    const path=airPath(sim.st);
+    // Particles follow the solved flows: they enter where air comes in and head for an outlet picked in
+    // proportion to how much air leaves there. Temperature-driven exchange shows as two-way traffic.
+    const st=sim.st, {inlets,outlets,buoyant}=airStreams(st), open=availableWindows(st);
+    const twoWay=open.filter(name=>st.fanMode==="off"||name!==st.fanLoc); // a running fan's window is all forced flow
+    const streaming=inlets.reduce((sum,it)=>sum+it.q,0);
     // Fractional spawn debt accumulates across frames so low flows still shed the odd particle.
     sim.spawnDebt=(sim.spawnDebt||0)+rate*2*(fscale==null?1:fscale);
     const n=Math.min(3,Math.floor(sim.spawnDebt));
     sim.spawnDebt=Math.min(3,sim.spawnDebt-n);
-    const coolIn=sim.st.outdoor<=sim.st.indoor; // when outdoors is hotter, the incoming air is the warm one
+    const coolIn=st.outdoor<=st.indoor; // when outdoors is hotter, the incoming air is the warm one
     for(let i=0;i<n;i++){
-      if(path.bidir){
-        const w=winOf(g,path.bidir), into=Math.random()<0.5;
-        const vx=-w.nx*(into?1:-1),vy=-w.ny*(into?1:-1),tx=-vy,ty=vx,off=(Math.random()-.5)*w.len;
-        sim.particles.push(mk(w.x+tx*off,w.y+ty*off,vx,vy,into,into?coolIn:!coolIn));
-        continue;
+      let at=null;
+      if(inlets.length&&Math.random()*(streaming+buoyant)<streaming){
+        const from=pickByFlow(inlets), targets=outlets.filter(it=>it.name!==from.name);
+        if(targets.length||!outlets.length){ // no outlet at all (air leaks out unseen): it just mixes in
+          const w=winOf(g,from.name),vx=-w.nx,vy=-w.ny,off=(Math.random()-.5)*w.len;
+          sim.particles.push(mk(w.x-vy*off,w.y+vx*off,vx,vy,true,coolIn,targets.length?pickByFlow(targets).name:undefined));
+          continue;
+        }
+        at=from.name; // its only outlet is the same window: an exchange fan trading air both ways
       }
-      if(path.intake){
-        const w=winOf(g,path.intake),vx=-w.nx,vy=-w.ny,tx=-vy,ty=vx,off=(Math.random()-.5)*w.len;
-        const x=w.x+tx*off,y=w.y+ty*off;
-        sim.particles.push(mk(x,y,vx,vy,true,coolIn,path.exhaust));
+      if(!at){
+        const pool=twoWay.length?twoWay:open;
+        if(!pool.length)continue;
+        at=pool[Math.floor(Math.random()*pool.length)];
       }
+      const w=winOf(g,at), into=Math.random()<0.5, s=into?1:-1;
+      const vx=-w.nx*s,vy=-w.ny*s,off=(Math.random()-.5)*w.len;
+      sim.particles.push(mk(w.x-vy*off,w.y+vx*off,vx,vy,into,into?coolIn:!coolIn));
     }
   }
   function mk(x,y,vx,vy,inbound,cool,target){const sp=0.8+Math.random()*0.7;return {x,y,vx:vx*sp,vy:vy*sp,inbound,cool,life:0,max:150+Math.random()*60,target};}
@@ -229,16 +320,17 @@ export {
   onlyOpen,
   applyConfig,
   configState,
-  pressure,
+  pressureCoefficient,
   otherWindows,
-  chooseByPressure,
   windBoost,
   naturalFlow,
+  fanReversed,
   windDominated,
   FLOW_MAX,
   HIST_MAX,
   flowModel,
   airPath,
+  airStreams,
   bestConfigFor,
   geomFor,
   winOf,

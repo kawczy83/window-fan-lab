@@ -9,12 +9,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=2.5.0">
+<link rel="stylesheet" href="styles.css?v=2.6.0">
 </head>
 <body>
 <div class="wrap">
   <header class="top">
-    <div class="tag">Thermal Airflow Bench · v2.5</div>
+    <div class="tag">Thermal Airflow Bench · v2.6</div>
     <h1>Window Fan Lab <em>// race configs · read the wind</em></h1>
     <p class="sub">Top-down room physics for a four-window bedroom (windows facing North, East, South &amp; West). Run a single Sandbox, race two configurations head-to-head, or pull a historical wind rose for your coordinates and feed the prevailing direction straight into the model.</p>
     <div class="header-meta" aria-label="Model highlights">
@@ -106,9 +106,9 @@
         <input type="range" id="sbOt" min="40" max="95" step="1" value="70"></div>
       <div class="actions">
         <button class="btn-reset" id="sbReset">Reset room → 78°F</button>
-        <button class="btn-best" id="sbBest">Load best: South · Out</button>
+        <button class="btn-best" id="sbBest">Load best: North · In</button>
       </div>
-      <p class="note"><b>How the model works:</b> cooling speed is driven by the <b>air-exchange rate</b>. The biggest factor is whether a complete <b>intake → exhaust path</b> exists. A sealed fan stalls itself — the one-in/one-out rule. Open or close each window independently; with multiple openings available, the model draws the dominant pressure-assisted path. For the default wind toward <b>South</b>, a South-window exhaust can pull from a windward North window.</p>
+      <p class="note"><b>How the model works:</b> cooling speed is driven by the <b>air-exchange rate</b>. The biggest factor is whether a complete <b>intake → exhaust path</b> exists. A sealed fan stalls itself — the one-in/one-out rule. Open or close each window independently; the model balances the wind's pressure on every open window against the fan's push, so each extra opening adds a path, and a fan blowing against the wind can do worse than none. For the default wind toward <b>South</b>, the North window is windward and the other three walls are under suction.</p>
     </div>
   </div>
 
@@ -193,7 +193,7 @@
           </div>
         </div>
       </div>
-      <p class="note"><b>Reading the result:</b> a clean through-path (fan + at least one other open window) cools fast; isolating the fan stalls it. Race timers are <b>relative simulation time</b>, not calibrated elapsed seconds. <b>Out vs In</b> is usually close once both have a path. Opposing wall presets make the wind-pressure effect easiest to compare.</p>
+      <p class="note"><b>Reading the result:</b> a clean through-path (fan + at least one other open window) cools fast; isolating the fan stalls it. Race timers are <b>relative simulation time</b>, not calibrated elapsed seconds. In a light breeze, placement barely matters; push the wind toward <b>15 mph</b> and the wind presets pull apart — a fan blowing against the wind can even lose to no fan.</p>
     </div>
   </div>
 
@@ -266,6 +266,6 @@
     window.addEventListener("window-fan-lab-ready",()=>{clearTimeout(timer);notice.hidden=true;},{once:true});
   })();
 </script>
-<script type="module" src="js/app.js?v=2.5.0"></script>
+<script type="module" src="js/app.js?v=2.6.0"></script>
 </body>
 </html>

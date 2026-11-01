@@ -1,5 +1,5 @@
-import { HIST_MAX } from "./model.js?v=2.5.0";
-import { tempColor } from "./draw.js?v=2.5.0";
+import { HIST_MAX } from "./model.js?v=2.6.0";
+import { tempColor } from "./draw.js?v=2.6.0";
 
 function drawChartSingle(ch,sim){
   const cx=ch.ctx,CW=ch.W,CH=ch.H,st=sim.st;

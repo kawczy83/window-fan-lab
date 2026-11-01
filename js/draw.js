@@ -1,4 +1,4 @@
-import { DEFAULT_INDOOR, WIND, WINDOW_IDS, isWindowOpen, winOf } from "./model.js?v=2.5.0";
+import { DEFAULT_INDOOR, WIND, WINDOW_IDS, isWindowOpen, winOf } from "./model.js?v=2.6.0";
 
 const lerp=(a,b,t)=>a+(b-a)*t;
 
